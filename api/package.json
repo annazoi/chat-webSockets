@@ -1,0 +1,26 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "main": "chat.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/annazoi/chat-webSockets.git"
+  },
+  "author": "anna zoi",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/annazoi/chat-webSockets/issues"
+  },
+  "homepage": "https://github.com/annazoi/chat-webSockets#readme",
+  "description": "",
+  "dependencies": {
+    "fs": "^0.0.1-security",
+    "http": "^0.0.1-security",
+    "path": "^0.12.7",
+    "ws": "^8.17.0"
+  }
+}

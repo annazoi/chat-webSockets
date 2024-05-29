@@ -1,5 +1,6 @@
 let http = require("http");
 let ws = require("ws");
+// filesystem
 let fs = require("fs");
 const path = require("path");
 
@@ -39,6 +40,7 @@ const server = http.createServer((req, res) => {
 const wsServer = new ws.WebSocketServer({ server, path: "/chat" });
 wsServer.on("connection", new_ws_connection);
 
-server.listen(8080, () => {
-  console.log("Server starting on port 8080");
+const port = 8080;
+server.listen(port, () => {
+  console.log(`Server starting on port ${port}`);
 });

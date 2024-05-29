@@ -6,7 +6,7 @@ const log = (message) => {
   console.log("Web Socket: ", message);
 };
 
-let ws = new WebSocket(API_URL + "/chat");
+let ws = new WebSocket(`${API_URL}/chat`);
 ws.onopen = function () {
   log("ws opened");
   let data = { user: username };

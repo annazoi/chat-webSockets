@@ -1,8 +1,9 @@
 const User = require("../model/User");
 const jwt = require("jsonwebtoken");
+const uploadImage = require("../lib/uploadImage");
 
 const signup = async (req, res) => {
-  const { username } = req.body;
+  const { username, avatar } = req.body;
   let existingUser;
   try {
     existingUser = await User.findOne({
@@ -15,8 +16,14 @@ const signup = async (req, res) => {
     return res.status(400).json({ message: "User already exists" });
   }
   try {
+    let result;
+    if (avatar) {
+      result = await uploadImage(avatar);
+    }
+
     const newUser = await User.create({
       username,
+      avatar: result || "",
     });
 
     let token;
@@ -33,6 +40,7 @@ const signup = async (req, res) => {
       userId: newUser._id,
       token: token,
       username: newUser.username,
+      avatar: result || "",
     });
   } catch (error) {
     return res.status(500).json({ message: error });

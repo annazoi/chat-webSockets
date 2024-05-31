@@ -6,17 +6,18 @@ import { useNavigate } from "react-router-dom";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { authSchema } from "../../../validations-schemas/auth";
 import { useForm } from "react-hook-form";
-import { Auth as AuthConfig } from "../../../validations-schemas/interfaces/user";
+import { Signup, Signin } from "../../../validations-schemas/interfaces/user";
 import { signup, signin } from "../../../services/auth";
 import { useMutation } from "react-query";
+import ImagePicker from "../../ImagePicker";
 
 interface AuthProps {
-  text?: string;
+  type?: string;
   icon?: any;
   buttonText?: string;
 }
 
-const Auth: FC<AuthProps> = ({ text, icon, buttonText }) => {
+const Auth: FC<AuthProps> = ({ type, icon, buttonText }) => {
   const navigate = useNavigate();
   const { mutate: signupMutate } = useMutation(signup);
   const { mutate: signinMutate } = useMutation(signin);
@@ -25,26 +26,32 @@ const Auth: FC<AuthProps> = ({ text, icon, buttonText }) => {
     handleSubmit,
     setValue,
     formState: { errors },
-  } = useForm<AuthConfig>({
+  } = useForm<Signup | Signin>({
     defaultValues: {
       username: "",
+      avatar: "",
     },
     resolver: yupResolver(authSchema),
   });
 
+  const handleImage = (avatar: string) => {
+    setValue("avatar", avatar);
+  };
+
   const onSubmit = async (data: any) => {
     try {
-      if (text === "Sign Up") {
+      if (type === "Sign Up") {
         signupMutate(data, {
-          onSuccess: () => {
-            console.log("signup", data);
+          onSuccess: (data: any) => {
+            if (data.avatar === undefined || data.avatar === " ") {
+              data.avatar = "";
+            }
             navigate("/chat");
           },
         });
       } else {
         signinMutate(data, {
           onSuccess: () => {
-            console.log("signin", data);
             navigate("/chat");
           },
         });
@@ -61,15 +68,30 @@ const Auth: FC<AuthProps> = ({ text, icon, buttonText }) => {
             letterSpacing: "2px",
           }}
         >
-          {text}
+          {type}
         </p>
         <form
-          style={{ display: "flex", flexDirection: "column", gap: "15px" }}
+          style={{ display: "flex", flexDirection: "column" }}
           onSubmit={handleSubmit(onSubmit)}
         >
           <Input placeholder="Username" register={register("username")} />
           {errors.username && <p>{errors.username.message}</p>}
-          <Button text={text} type="submit" />
+          {type === "Sign Up" && (
+            <ImagePicker onChange={handleImage}></ImagePicker>
+          )}
+          <Button
+            text={type}
+            type="submit"
+            style={{
+              backgroundColor: "black",
+              color: "white",
+              padding: "10px",
+              borderRadius: "5px",
+              border: "none",
+              cursor: "pointer",
+              marginTop: "15px",
+            }}
+          />
         </form>
       </div>
       <div

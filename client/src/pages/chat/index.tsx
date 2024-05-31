@@ -1,9 +1,20 @@
 import { FC, useState } from "react";
 import "./style.css";
 import { IoSend } from "react-icons/io5";
+import Button from "../../components/ui/Button";
+import { AiOutlineLogout } from "react-icons/ai";
+import { useQuery } from "react-query";
+import { getUsers } from "../../services/user";
+import { User } from "../../validations-schemas/interfaces/user";
+import { FaUserCircle } from "react-icons/fa";
 
 const Chat: FC = () => {
   const [hoverdId, setHoverdId] = useState<string>("");
+  const [hovered, setHovered] = useState<boolean>(false);
+
+  const { data } = useQuery("users", getUsers);
+
+  console.log(data);
 
   const handleHover = (id: string) => {
     setHoverdId(id);
@@ -12,7 +23,7 @@ const Chat: FC = () => {
   const chats = [
     {
       id: 1,
-      name: "John Doe",
+      name: "Public Chat",
       lastMessage: "Hello",
       lastMessageTime: "12:00",
       unreadMessages: 3,
@@ -124,6 +135,7 @@ const Chat: FC = () => {
             alignItems: "center",
             paddingLeft: "10px",
             borderTop: "1px solid black",
+            // boxSizing: "border-box",
           }}
         >
           <input
@@ -137,14 +149,117 @@ const Chat: FC = () => {
               backgroundColor: "transparent",
             }}
           />
-          <button
+          <Button icon={<IoSend />} buttonText="Send"></Button>
+        </div>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          // justifyContent: "center",
+          height: "90vh",
+          minWidth: "10vw",
+          backgroundColor: "rgba(0, 0, 0, 0.1)",
+          borderRadius: "0 15px 15px 0",
+          justifyContent: "space-between",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
+          }}
+        >
+          {data?.map((user: User, index: number) => (
+            <div
+              key={index}
+              style={{
+                display: "flex",
+                gap: "10px",
+                backgroundColor: hovered
+                  ? "rgba(0, 0, 0, 0.2)"
+                  : "rgba(0, 0, 0, 0.1)",
+                justifyContent: "center",
+                width: "100%",
+                boxSizing: "border-box",
+                cursor: "pointer",
+                borderRadius: "15px",
+              }}
+            >
+              <div
+                style={{
+                  alignContent: "center",
+                  paddingTop: "4px",
+                }}
+              >
+                {user.avatar === "" ? (
+                  <img
+                    src="https://w7.pngwing.com/pngs/529/816/png-transparent-computer-icons-user-profile-avatar-heroes-monochrome-black.png"
+                    alt=""
+                    style={{
+                      width: "30px",
+                      height: "30px",
+                      borderRadius: "50%",
+                    }}
+                  />
+                ) : (
+                  <img
+                    src={user.avatar}
+                    alt=""
+                    style={{
+                      width: "30px",
+                      height: "30px",
+                      borderRadius: "50%",
+                    }}
+                  />
+                )}
+              </div>
+              <div>
+                <p>{user.username}</p>
+              </div>
+              <div
+                style={{
+                  cursor: "pointer",
+                  paddingTop: "4px",
+                  alignSelf: "center",
+                }}
+              >
+                <IoSend />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            borderRadius: "0 0 15px 0",
+            backgroundColor: hovered
+              ? "rgba(0, 0, 0, 0.2)"
+              : "rgba(0, 0, 0, 0.1)",
+            justifyContent: "center",
+            width: "100%",
+            boxSizing: "border-box",
+            cursor: "pointer",
+          }}
+          onMouseOver={() => setHovered(true)}
+          onMouseOut={() => setHovered(false)}
+        >
+          <div>
+            <p>logout</p>
+          </div>
+          <div
             style={{
-              outline: "none",
+              cursor: "pointer",
+              paddingTop: "4px",
+              alignSelf: "center",
             }}
           >
-            Send
-            {/* <IoSend color="black" size="20px" style={{ marginTop: "2px" }} /> */}
-          </button>
+            <AiOutlineLogout />
+          </div>
         </div>
       </div>
     </div>

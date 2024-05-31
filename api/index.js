@@ -5,19 +5,21 @@ const mongoose = require("mongoose");
 require("dotenv/config");
 const fs = require("fs");
 const http = require("http").Server(app);
+const bodyParser = require("body-parser");
 const cors = require("cors");
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/user");
 const chatRoutes = require("./routes/chat");
 
-// app.use(express.json({ limit: "50mb" }));
-// app.use(bodyParser.json());
-// app.use(
-//   bodyParser.urlencoded({
-//     // limit: "50mb",
-//     extended: true,
-//   })
-// );
+// gia to avatar
+app.use(express.json({ limit: "50mb" }));
+app.use(bodyParser.json());
+app.use(
+  bodyParser.urlencoded({
+    limit: "50mb",
+    extended: true,
+  })
+);
 app.use(cors());
 
 app.use(express.json());

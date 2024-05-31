@@ -7,21 +7,21 @@ interface ButtonProps {
   buttonText?: string;
   onClick?: () => void;
   type?: any;
+  style?: any;
 }
 
-const Button: FC<ButtonProps> = ({ text, icon, buttonText, onClick, type }) => {
+const Button: FC<ButtonProps> = ({
+  text,
+  icon,
+  buttonText,
+  onClick,
+  type,
+  style,
+}) => {
   return (
     <>
       {!icon && (
-        <button
-          type={type ? type : "button"}
-          style={{
-            borderRadius: "5px",
-            width: "100%",
-            backgroundColor: "#007bff",
-            color: "white",
-          }}
-        >
+        <button type={type ? type : "button"} style={style}>
           {text}
         </button>
       )}

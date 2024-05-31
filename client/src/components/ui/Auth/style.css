@@ -1,0 +1,11 @@
+.auth-container {
+  display: flex;
+  flex-direction: column;
+  background-color: rgb(240, 248, 255, 0.4);
+  /* min-width: 500px; */
+  border-radius: 15px;
+  text-align: center;
+  padding-bottom: 30px;
+  padding-left: 30px;
+  padding-right: 30px;
+}

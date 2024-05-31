@@ -6,21 +6,32 @@ import { AiOutlineLogout } from "react-icons/ai";
 import { useQuery } from "react-query";
 import { getUsers } from "../../services/user";
 import { User } from "../../validations-schemas/interfaces/user";
-import { FaUserCircle } from "react-icons/fa";
-
+import { IoIosSend } from "react-icons/io";
+import { getChats } from "../../services/chat";
+import { authStore } from "../../store/authStore";
+import { useNavigate } from "react-router-dom";
+import { Chat as ChatProps } from "../../validations-schemas/interfaces/chat";
 const Chat: FC = () => {
   const [hoverdId, setHoverdId] = useState<string>("");
   const [hovered, setHovered] = useState<boolean>(false);
 
-  const { data } = useQuery("users", getUsers);
+  const { logOut } = authStore((state) => state);
 
-  console.log(data);
+  const { data: users } = useQuery("users", getUsers);
+  const { data: chats } = useQuery("chats", getChats);
+
+  const navigate = useNavigate();
 
   const handleHover = (id: string) => {
     setHoverdId(id);
   };
 
-  const chats = [
+  const handleLogout = () => {
+    logOut();
+    navigate("/signin");
+  };
+
+  const chatss = [
     {
       id: 1,
       name: "Public Chat",
@@ -85,28 +96,26 @@ const Chat: FC = () => {
     <div className="chat-container">
       <div className="chats-container">
         <div>Chats</div>
-        {chats.map((chat: any) => (
+        {chatss?.map((chat: any, index: number) => (
           <div
-            key={chat.id}
+            key={index}
             style={{
               margin: "5px",
               textAlign: "left",
               padding: "5px",
               borderRadius: "15px",
-              // backgroundColor: "rgba(0, 0, 0, 0.1)",
               cursor: "pointer",
-              // onHover: "background-color: rgba(0, 0, 0, 0.2)",
               backgroundColor:
                 hoverdId == chat.id.toString()
                   ? "rgba(0, 0, 0, 0.2)"
                   : "rgba(0, 0, 0, 0.1)",
             }}
-            onMouseOver={() => handleHover(chat.id)}
+            onMouseOver={() => handleHover(chat._id)}
             onMouseOut={() => setHoverdId("")}
             onClick={() => console.log(`${chat.name} clicked`)}
           >
             <div className="chat-name">{chat.name}</div>
-            <div className="chat-last-message">{chat.lastMessage}</div>
+            {/* <div className="chat-last-message">{chat.lastMessage}</div> */}
           </div>
         ))}
       </div>
@@ -173,20 +182,18 @@ const Chat: FC = () => {
             gap: "10px",
           }}
         >
-          {data?.map((user: User, index: number) => (
+          {users?.map((user: User, index: number) => (
             <div
               key={index}
               style={{
                 display: "flex",
                 gap: "10px",
-                backgroundColor: hovered
-                  ? "rgba(0, 0, 0, 0.2)"
-                  : "rgba(0, 0, 0, 0.1)",
+                backgroundColor: "rgba(0, 0, 0, 0.1)",
                 justifyContent: "center",
                 width: "100%",
                 boxSizing: "border-box",
                 cursor: "pointer",
-                borderRadius: "15px",
+                borderRadius: index === 0 ? "0 15px 15px 15px" : "15px",
               }}
             >
               <div
@@ -227,7 +234,7 @@ const Chat: FC = () => {
                   alignSelf: "center",
                 }}
               >
-                <IoSend />
+                <IoIosSend />
               </div>
             </div>
           ))}
@@ -247,6 +254,7 @@ const Chat: FC = () => {
           }}
           onMouseOver={() => setHovered(true)}
           onMouseOut={() => setHovered(false)}
+          onClick={handleLogout}
         >
           <div>
             <p>logout</p>

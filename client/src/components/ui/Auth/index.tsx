@@ -10,6 +10,7 @@ import { Signup, Signin } from "../../../validations-schemas/interfaces/user";
 import { signup, signin } from "../../../services/auth";
 import { useMutation } from "react-query";
 import ImagePicker from "../../ImagePicker";
+import { authStore } from "../../../store/authStore";
 
 interface AuthProps {
   type?: string;
@@ -18,6 +19,7 @@ interface AuthProps {
 }
 
 const Auth: FC<AuthProps> = ({ type, icon, buttonText }) => {
+  const { logIn } = authStore((state) => state);
   const navigate = useNavigate();
   const { mutate: signupMutate } = useMutation(signup);
   const { mutate: signinMutate } = useMutation(signin);
@@ -46,12 +48,24 @@ const Auth: FC<AuthProps> = ({ type, icon, buttonText }) => {
             if (data.avatar === undefined || data.avatar === " ") {
               data.avatar = "";
             }
+            logIn({
+              token: data.token,
+              userId: data.userId,
+              avatar: data.avatar,
+              username: data.username,
+            });
             navigate("/chat");
           },
         });
       } else {
         signinMutate(data, {
-          onSuccess: () => {
+          onSuccess: (data: any) => {
+            logIn({
+              token: data.token,
+              userId: data.userId,
+              avatar: data.avatar,
+              username: data.username,
+            });
             navigate("/chat");
           },
         });

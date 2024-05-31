@@ -60,9 +60,21 @@ const signin = async (req, res) => {
   if (!existingUser) {
     return res.status(400).json({ message: "User does not exist" });
   }
+
+  let token;
+
+  token = jwt.sign(
+    {
+      userId: existingUser.id,
+      username: existingUser.username,
+    },
+    process.env.JWT_SECRET
+  );
   return res.status(200).json({
     username: existingUser.username,
     userId: existingUser._id,
+    token: token,
+    avatar: existingUser.avatar,
   });
 };
 

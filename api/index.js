@@ -32,7 +32,7 @@ app.get("/", (req, res) => {
 
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
-app.use("/chat", chatRoutes);
+app.use("/chats", chatRoutes);
 
 mongoose.connect(process.env.DB_CONNECTION).then(() => {
   http.listen(8080, () => {

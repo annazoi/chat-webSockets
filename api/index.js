@@ -10,6 +10,7 @@ const cors = require("cors");
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/user");
 const chatRoutes = require("./routes/chat");
+const ws = require("ws");
 
 // gia to avatar
 app.use(express.json({ limit: "50mb" }));
@@ -33,6 +34,43 @@ app.get("/", (req, res) => {
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/chats", chatRoutes);
+
+const wsServer = new ws.Server({ server: http });
+
+wsServer.on("connection", (ws) => {
+  console.log(`user connected`);
+
+  ws.on("message", (message) => {
+    const data = JSON.parse(message);
+
+    if (data.type === "join_room") {
+      ws.room = data.room; //
+      console.log(`user joined room: ${data.room}`);
+    }
+
+    if (data.type === "send_message") {
+      wsServer.clients.forEach((client) => {
+        // if (client.room === data.room) {
+        client.send(
+          JSON.stringify({
+            type: "receive_message",
+            message: data.message,
+          })
+        );
+        // }
+      });
+      console.log("receive_message", data);
+    }
+  });
+
+  ws.on("close", () => {
+    console.log("user disconnected");
+  });
+
+  ws.on("error", (err) => {
+    console.log(`connect_error due to ${err.message}`);
+  });
+});
 
 mongoose.connect(process.env.DB_CONNECTION).then(() => {
   http.listen(8080, () => {

@@ -1,24 +1,50 @@
-import { FC, useState } from "react";
+import { FC, useEffect, useState } from "react";
 import "./style.css";
 import { IoSend } from "react-icons/io5";
 import Button from "../../components/ui/Button";
 import { AiOutlineLogout } from "react-icons/ai";
-import { useQuery } from "react-query";
+import { useMutation, useQuery } from "react-query";
 import { getUsers } from "../../services/user";
 import { User } from "../../validations-schemas/interfaces/user";
 import { IoIosSend } from "react-icons/io";
-import { getChats } from "../../services/chat";
+import { getChats, sendMessage } from "../../services/chat";
 import { authStore } from "../../store/authStore";
-import { useNavigate } from "react-router-dom";
-import { Chat as ChatProps } from "../../validations-schemas/interfaces/chat";
+import { useNavigate, useParams } from "react-router-dom";
+// import { useWebSocket } from "../../hooks/webSockets";
+import {
+  Chat as ChatProp,
+  Message,
+  NewMessage,
+} from "../../validations-schemas/interfaces/chat";
+import { API_URL } from "../../constants/api";
 const Chat: FC = () => {
+  const { id } = useParams();
+
+  // const ws = useWebSocket();
+
+  // const ws = new WebSocket(`${API_URL.replace(/^http/, "ws")}`);
+
   const [hoverdId, setHoverdId] = useState<string>("");
   const [hovered, setHovered] = useState<boolean>(false);
+  const [selectedChat, setSelectedChat] = useState<any>();
+  const [newMessage, setNewMessage] = useState<string>("");
+  const [messages, setMessages] = useState<ChatProp[]>([]);
+  const [ws, setWs] = useState<any>();
 
-  const { logOut } = authStore((state) => state);
+  const { logOut, userId } = authStore((state) => state);
 
   const { data: users } = useQuery("users", getUsers);
-  const { data: chats } = useQuery("chats", getChats);
+  const { data: chats } = useQuery<ChatProp[]>("chats", getChats);
+
+  const { mutate: sendMessageMutate } = useMutation(
+    ({ id, message }: { id: string; message: NewMessage }) =>
+      sendMessage(id, message)
+  );
+
+  useEffect(() => {
+    const ws = new WebSocket(`${API_URL.replace(/^http/, "ws")}`);
+    setWs(ws);
+  }, []);
 
   const navigate = useNavigate();
 
@@ -31,72 +57,71 @@ const Chat: FC = () => {
     navigate("/signin");
   };
 
-  const chatss = [
-    {
-      id: 1,
-      name: "Public Chat",
-      lastMessage: "Hello",
-      lastMessageTime: "12:00",
-      unreadMessages: 3,
-    },
-    {
-      id: 2,
-      name: "Jane Doe",
-      lastMessage: "Hi",
-      lastMessageTime: "12:01",
-      unreadMessages: 0,
-    },
-    {
-      id: 3,
-      name: "John Smith",
-      lastMessage: "Hey",
-      lastMessageTime: "12:02",
-      unreadMessages: 1,
-    },
-    {
-      id: 4,
-      name: "Jane Smith",
-      lastMessage: "Hi",
-      lastMessageTime: "12:03",
-      unreadMessages: 0,
-    },
-    {
-      id: 5,
-      name: "John Doe",
-      lastMessage: "Hello",
-      lastMessageTime: "12:00",
-      unreadMessages: 3,
-    },
-  ];
+  const handleSelectedChat = (chatId: string) => {
+    const selectedChat: any = chats?.find((chat) => chat.id === chatId);
+    setSelectedChat(selectedChat);
+    setMessages(selectedChat?.messages || []);
+    navigate(`/chat/${chatId}`);
+    ws.send(JSON.stringify({ type: "join_room", room: chatId }));
+  };
 
-  const messages = [
-    {
-      id: 1,
-      message: "Hello",
-      senderId: 1,
-    },
-    {
-      id: 2,
-      message: "Hi",
-      senderId: 2,
-    },
-    {
-      id: 3,
-      message: "Hey",
-      senderId: 1,
-    },
-    {
-      id: 4,
-      message: "Hi",
-      senderId: 2,
-    },
-  ];
+  const handleNewMessage = () => {
+    if (newMessage === "") return;
+    sendMessageMutate(
+      {
+        id: selectedChat?.id || "",
+        message: {
+          senderId: userId,
+          message: newMessage,
+        },
+      },
+      {
+        onSuccess: (data) => {
+          const messageData = {
+            ...data.messages[data.messages.length - 1],
+          };
+          ws.send(
+            JSON.stringify({ type: "send_message", message: messageData })
+          );
+
+          setNewMessage("");
+          // refetch();
+          setSelectedChat(data);
+        },
+      }
+    );
+  };
+
+  useEffect(() => {
+    if (!ws) return;
+    ws.onopen = () => {
+      console.log("WebSocket connected");
+    };
+    if (ws) {
+      ws.onmessage = (event: any) => {
+        const messageData = JSON.parse(event.data);
+        if (messageData.type == "receive_message") {
+          setMessages((prevMessage) => [...prevMessage, messageData.message]);
+          setSelectedChat((prevChat: any) => {
+            const chat = { ...prevChat };
+            chat.messages = [...chat.messages, messageData.message];
+            return chat;
+          });
+          console.log("receuvee", messageData);
+        }
+      };
+    }
+  }, [ws]);
+
+  // useEffect(() => {
+  //   console.log("MESSAGEs", messages);
+  // }, [messages]);
 
   return (
     <div className="chat-container">
       <div className="chats-container">
         <div>Chats</div>
-        {chatss?.map((chat: any, index: number) => (
+        {chats?.map((chat: ChatProp, index: number) => (
           <div
             key={index}
             style={{
@@ -106,13 +131,13 @@ const Chat: FC = () => {
               borderRadius: "15px",
               cursor: "pointer",
               backgroundColor:
-                hoverdId == chat.id.toString()
+                hoverdId == chat.id
                   ? "rgba(0, 0, 0, 0.2)"
                   : "rgba(0, 0, 0, 0.1)",
             }}
-            onMouseOver={() => handleHover(chat._id)}
+            onMouseOver={() => handleHover(chat.id)}
             onMouseOut={() => setHoverdId("")}
-            onClick={() => console.log(`${chat.name} clicked`)}
+            onClick={() => handleSelectedChat(chat.id)}
           >
             <div className="chat-name">{chat.name}</div>
             {/* <div className="chat-last-message">{chat.lastMessage}</div> */}
@@ -120,20 +145,39 @@ const Chat: FC = () => {
         ))}
       </div>
       <div className="selected-chat-container">
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            height: "100%",
-            overflowY: "auto",
-            minHeight: "84vh",
-            // alignItems: {messages.senderId === 1 ? "flex-end" : "flex-start"},
-            justifyContent: "flex-end",
-          }}
-        >
-          {messages.map((message: any) => (
-            <div key={message.id} className="message-container">
-              {message.message}
+        <div className="message-list">
+          {selectedChat?.messages.map((message: Message, index: number) => (
+            <div
+              key={index}
+              className="message-container"
+              style={{
+                alignSelf:
+                  message.sender.id === userId ? "flex-end" : "flex-start",
+                flexDirection:
+                  message.sender.id === userId ? "row-reverse" : "row",
+              }}
+            >
+              <img
+                src={message.sender.avatar}
+                alt=""
+                style={{
+                  width: "30px",
+                  height: "30px",
+                  borderRadius: "50%",
+                  marginTop: "16px",
+                }}
+              />
+              <div
+                className="message-content"
+                style={{
+                  backgroundColor:
+                    message.sender.id === userId
+                      ? "rgb(240, 248, 255, 0.6)"
+                      : "rgba(0, 0, 0, 0.1)",
+                }}
+              >
+                {message.message}
+              </div>
             </div>
           ))}
         </div>
@@ -157,8 +201,14 @@ const Chat: FC = () => {
               outline: "none",
               backgroundColor: "transparent",
             }}
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
           />
-          <Button icon={<IoSend />} buttonText="Send"></Button>
+          <Button
+            icon={<IoSend />}
+            buttonText="Send"
+            onClick={handleNewMessage}
+          ></Button>
         </div>
       </div>
       <div
@@ -195,6 +245,7 @@ const Chat: FC = () => {
                 cursor: "pointer",
                 borderRadius: index === 0 ? "0 15px 15px 15px" : "15px",
               }}
+              onClick={() => console.log(`${user.username} clicked`)}
             >
               <div
                 style={{

@@ -19,7 +19,7 @@ const sendMessage = async (req, res) => {
 
     await chat.save();
 
-    res.status(200).json({ message: "ok", chat: chat });
+    res.status(200).json({ message: "message sent successfully", chat: chat });
   } catch (err) {
     res.status(500).json({ message: err, chat: null });
   }

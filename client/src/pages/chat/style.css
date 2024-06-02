@@ -17,6 +17,31 @@
   background-color: rgb(240, 248, 255, 0.5);
 }
 
+.public-chat {
+  margin: 5px;
+  text-align: left;
+  padding: 5px;
+  border-radius: 15px;
+  cursor: pointer;
+  background-color: rgba(0, 0, 0, 0.1);
+}
+.public-chat:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.chats-content {
+  margin: 5px;
+  text-align: left;
+  padding: 5px;
+  border-radius: 15px;
+  cursor: pointer;
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.chats-content:hover {
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
 .selected-chat-container {
   display: flex;
   flex-direction: column;
@@ -34,7 +59,6 @@
   /* height: 100%; */
   min-height: 80vh;
   overflow-y: auto;
-  border: 1px solid red;
   padding: 10px;
 }
 
@@ -52,6 +76,74 @@
   padding: 10px;
   border-radius: 15px;
   margin: 10px;
+}
+
+.message-input-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-left: 10px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 6px;
+}
+
+.message-input-content {
+  width: 80%;
+  padding: 5px;
+  border: none;
+  outline: none;
+  background-color: transparent;
+}
+
+.active-users-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 10vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  background-color: rgba(0, 0, 0, 0.1);
+
+  border-radius: 0 15px 15px 0;
+  justify-content: space-between;
+}
+
+.active-users-content {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.active-users-box {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.logout-button {
+  display: flex;
+  gap: 10px;
+  border-radius: 0 0 15px 0;
+  background-color: rgba(0, 0, 0, 0.1);
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.boxes-content {
+  cursor: pointer;
+  padding-top: 4px;
+  align-self: center;
+}
+
+.logout-button:hover {
+  background-color: rgba(0, 0, 0, 0.2);
 }
 
 @media (max-width: 1024px) {

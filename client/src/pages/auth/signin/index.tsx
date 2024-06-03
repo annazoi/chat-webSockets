@@ -1,6 +1,6 @@
 import { FC } from "react";
 import { AiOutlineLogin } from "react-icons/ai";
-import Auth from "../../../components/ui/Auth";
+import Auth from "../../../components/Auth";
 
 const Signin: FC = () => {
   return (

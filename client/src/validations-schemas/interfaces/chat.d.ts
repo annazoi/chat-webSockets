@@ -9,6 +9,7 @@ export interface NewChat {
 export interface NewMessage {
   message: string;
   senderId: string;
+  image?: string;
 }
 
 export interface Chat {

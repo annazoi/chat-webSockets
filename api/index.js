@@ -92,7 +92,6 @@ wsServer.on("connection", (ws) => {
         );
       });
 
-      ws.send("welcome to the public chat");
       console.log("public_chat", data);
     }
   });

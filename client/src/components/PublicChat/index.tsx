@@ -21,7 +21,7 @@ const PublicChat: FC<PublicChatProps> = ({
   newMessage,
   setNewMessage,
   userId,
-  avatar,
+  // avatar,
 }) => {
   useEffect(() => {
     console.log(messages);
@@ -29,11 +29,11 @@ const PublicChat: FC<PublicChatProps> = ({
   return (
     <>
       <div className="exit-public-chat" onClick={() => setIsPublicChat(false)}>
-        <div>Go to private Chats</div>
+        <div>Back to Inbox</div>
         <GoArrowLeft />
       </div>
       <div className="selected-chat-container">
-        <div>Public Chat</div>
+        <div className="heading-text">Public Chat</div>
         <div className="message-list">
           {messages?.map((message: any, index: number) => (
             <div

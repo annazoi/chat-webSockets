@@ -1,4 +1,4 @@
-import { Chat, Message } from "../../validations-schemas/interfaces/chat";
+import { Chat } from "../../validations-schemas/interfaces/chat";
 import { formatUser } from "./user";
 
 export const formatChat = (data: any): Chat => {

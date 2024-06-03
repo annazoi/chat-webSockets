@@ -1,16 +1,16 @@
 import { FC } from "react";
 import "./style.css";
-import Input from "../../../components/ui/Input";
-import Button from "../../../components/ui/Button";
+import Input from "../ui/Input";
+import Button from "../ui/Button";
 import { useNavigate } from "react-router-dom";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { authSchema } from "../../../validations-schemas/auth";
+import { authSchema } from "../../validations-schemas/auth";
 import { useForm } from "react-hook-form";
-import { Signup, Signin } from "../../../validations-schemas/interfaces/user";
-import { signup, signin } from "../../../services/auth";
+import { Signup, Signin } from "../../validations-schemas/interfaces/user";
+import { signup, signin } from "../../services/auth";
 import { useMutation } from "react-query";
-import ImagePicker from "../../ImagePicker";
-import { authStore } from "../../../store/authStore";
+import ImagePicker from "../ImagePicker";
+import { authStore } from "../../store/authStore";
 
 interface AuthProps {
   type?: string;

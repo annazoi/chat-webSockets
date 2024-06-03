@@ -14,8 +14,8 @@ const ImagePicker = ({
   onChange,
   value,
   text,
-  register,
-}: ImagePickerProps) => {
+}: // register,
+ImagePickerProps) => {
   const imageRef: any = useRef(null);
   const [image, setImage] = useState(null);
 

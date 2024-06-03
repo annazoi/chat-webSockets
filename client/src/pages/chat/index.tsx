@@ -1,27 +1,31 @@
 import { FC, useEffect, useState } from "react";
 import "./style.css";
-import { IoSend } from "react-icons/io5";
+import { IoSend, IoVideocam } from "react-icons/io5";
 import Button from "../../components/ui/Button";
 import { AiOutlineLogout } from "react-icons/ai";
 import { RiRadioButtonLine } from "react-icons/ri";
 import { useMutation, useQuery } from "react-query";
-import { getUsers } from "../../services/user";
+// import { getUsers } from "../../services/user";
 import { User } from "../../validations-schemas/interfaces/user";
 import { IoIosSend } from "react-icons/io";
 import { createChat, getChats, sendMessage } from "../../services/chat";
 import { authStore } from "../../store/authStore";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Chat as ChatProp,
   Message,
   NewMessage,
 } from "../../validations-schemas/interfaces/chat";
 import { API_URL } from "../../constants/api";
-import { ref } from "yup";
 import PublicChat from "../../components/PublicChat";
+import { FaArrowRightToBracket } from "react-icons/fa6";
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { GrGallery } from "react-icons/gr";
+
 const Chat: FC = () => {
   const [selectedChat, setSelectedChat] = useState<any>();
   const [newMessage, setNewMessage] = useState<string>("");
+  const [image, setImage] = useState<string>("");
   const [connectedUsers, setConnectedUsers] = useState<
     { username: string; avatar: string; userId: string }[]
   >([]);
@@ -31,23 +35,17 @@ const Chat: FC = () => {
   const [isConnectedUserOptions, setIsConnectedUserOptions] =
     useState<boolean>(false);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [isImageMessage, setIsImageMessage] = useState<boolean>(false);
   const [ws, setWs] = useState<any>();
 
   const { logOut, userId, username, avatar } = authStore((state) => state);
 
-  const { data: users } = useQuery("users", getUsers);
+  // const { data: users } = useQuery("users", getUsers);
   const { data: chats, refetch } = useQuery<ChatProp[]>("chats", getChats);
 
   const { mutate: createChatMutate } = useMutation(
-    ({
-      type,
-      members,
-      name,
-    }: {
-      type: string;
-      members: any[];
-      name?: string;
-    }) => createChat({ type, members })
+    ({ type, members }: { type: string; members: any[] }) =>
+      createChat({ type, members })
   );
 
   const { mutate: sendMessageMutate } = useMutation(
@@ -93,7 +91,7 @@ const Chat: FC = () => {
       message: publicInput,
       username: username,
       userId: userId,
-      avatar: avatar,
+      // avatar: avatar,
     };
     ws.send(JSON.stringify({ type: "public_chat", message: messagesData }));
     setPublicInput("");
@@ -127,13 +125,14 @@ const Chat: FC = () => {
   };
 
   const handleNewMessage = () => {
-    if (newMessage === "") return;
+    if (newMessage === "" && !image) return;
     sendMessageMutate(
       {
         id: selectedChat?.id || "",
         message: {
           senderId: userId,
           message: newMessage,
+          image: image,
         },
       },
       {
@@ -146,6 +145,8 @@ const Chat: FC = () => {
           );
           refetch();
           setNewMessage("");
+          setImage("");
+          setIsImageMessage(false);
           setSelectedChat(data);
         },
       }
@@ -157,6 +158,21 @@ const Chat: FC = () => {
       setSelectedUserId(id);
       setIsConnectedUserOptions(!isConnectedUserOptions);
     }
+  };
+
+  const handleGallery = async () => {
+    const image = await Camera.getPhoto({
+      quality: 90,
+      allowEditing: false,
+      resultType: CameraResultType.DataUrl,
+      source: CameraSource.Photos,
+    });
+
+    let imageUrl = image.dataUrl;
+
+    setImage(imageUrl || "");
+    setIsImageMessage(true);
+    return imageUrl;
   };
 
   useEffect(() => {
@@ -212,9 +228,15 @@ const Chat: FC = () => {
       ) : (
         <>
           <div className="chats-container">
-            <div>Chats</div>
+            <div className="heading-text">{username}'s Inbox</div>
             <div className="public-chat" onClick={() => setIsPublicChat(true)}>
-              Go to Public Chat
+              <div>Go to Public Chat</div>
+              <FaArrowRightToBracket
+                className="boxes-content"
+                style={{
+                  marginBottom: "4px",
+                }}
+              />
             </div>
             {chats?.map((chat: ChatProp, index: number) => (
               <div
@@ -237,7 +259,15 @@ const Chat: FC = () => {
                       {" "}
                       {handleChatName(chat)}
                     </div>
-                    <div>
+                    <div
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        maxWidth: "300px",
+                        whiteSpace: "nowrap",
+                        width: "100%",
+                      }}
+                    >
                       {chat.messages[chat.messages.length - 1]?.message}
                     </div>
                   </div>
@@ -247,7 +277,21 @@ const Chat: FC = () => {
           </div>
 
           <div className="selected-chat-container">
-            <div>{handleChatName(selectedChat)}</div>
+            <div className="heading-text">{handleChatName(selectedChat)}</div>
+            {!selectedChat && (
+              <div
+                style={{
+                  marginTop: "20px",
+                  textAlign: "center",
+                  letterSpacing: "2px",
+                  textShadow: "1px 1px 1px rgba(0,0,0,0.2)",
+                }}
+              >
+                <p>
+                  You have no messages yet. Click on a user to start a chat.
+                </p>
+              </div>
+            )}
             <div className="message-list">
               {selectedChat?.messages.map((message: Message, index: number) => (
                 <div
@@ -274,35 +318,72 @@ const Chat: FC = () => {
                       marginTop: "16px",
                     }}
                   />
-
-                  <div
-                    className="message-content"
-                    style={{
-                      backgroundColor:
-                        message.sender.id === userId
-                          ? "rgb(240, 248, 255, 0.6)"
-                          : "rgba(0, 0, 0, 0.1)",
-                    }}
-                  >
-                    {message.message}
-                  </div>
+                  {message.message && (
+                    <div
+                      className="message-content"
+                      style={{
+                        backgroundColor:
+                          message.sender.id === userId
+                            ? "rgb(240, 248, 255, 0.6)"
+                            : "rgba(0, 0, 0, 0.1)",
+                      }}
+                    >
+                      {message.message}
+                    </div>
+                  )}
+                  {message.image && (
+                    <img
+                      src={message.image}
+                      alt=""
+                      style={{
+                        width: "100px",
+                        height: "100px",
+                        borderRadius: "10px",
+                      }}
+                    />
+                  )}
                 </div>
               ))}
             </div>
-            <div className="message-input-container">
-              <input
-                className="message-input-content"
-                type="text"
-                placeholder="Type a message..."
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-              />
-              <Button
-                icon={<IoSend />}
-                buttonText="Send"
-                onClick={handleNewMessage}
-              ></Button>
-            </div>
+            {selectedChat && (
+              <div className="message-input-container">
+                {!isImageMessage ? (
+                  <input
+                    className="message-input-content"
+                    type="text"
+                    placeholder="Type a message..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter") handleNewMessage();
+                    }}
+                  />
+                ) : (
+                  <div className="image-input-content">
+                    <img
+                      src={image}
+                      alt=""
+                      style={{
+                        width: "30px",
+                        height: "30px",
+                        borderRadius: "10px",
+                      }}
+                    />
+                  </div>
+                )}
+
+                <Button
+                  icon={<GrGallery />}
+                  buttonText="Image"
+                  onClick={handleGallery}
+                ></Button>
+                <Button
+                  icon={<IoSend />}
+                  buttonText="Send"
+                  onClick={handleNewMessage}
+                ></Button>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -310,9 +391,8 @@ const Chat: FC = () => {
       <div className="online-users-container">
         <div className="online-users-content">
           {connectedUsers.map((user: any, index: number) => (
-            <>
+            <div key={index}>
               <div
-                key={index}
                 className="online-users-box"
                 style={{
                   borderRadius: index === 0 ? "0 15px 15px 15px" : "15px",
@@ -359,12 +439,12 @@ const Chat: FC = () => {
                     className="connected-user-options-content"
                     style={{ borderTop: "1px solid rgb(0,0,0,0.1)" }}
                   >
-                    <div>Make Call</div>
-                    <IoIosSend className="boxes-content" />
+                    <div>Make Video Call</div>
+                    <IoVideocam className="boxes-content" />
                   </div>
                 </div>
               )}
-            </>
+            </div>
           ))}
         </div>
 

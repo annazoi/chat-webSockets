@@ -1,4 +1,4 @@
-import { FC, useEffect, useState } from "react";
+import { FC, useEffect, useRef, useState } from "react";
 import "./style.css";
 import { IoSend, IoVideocam } from "react-icons/io5";
 import Button from "../../components/ui/Button";
@@ -21,6 +21,7 @@ import PublicChat from "../../components/PublicChat";
 import { FaArrowRightToBracket } from "react-icons/fa6";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { GrGallery } from "react-icons/gr";
+import Peer from "simple-peer";
 
 const Chat: FC = () => {
   const [selectedChat, setSelectedChat] = useState<any>();
@@ -36,7 +37,23 @@ const Chat: FC = () => {
     useState<boolean>(false);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [isImageMessage, setIsImageMessage] = useState<boolean>(false);
+
+  // webSockets
   const [ws, setWs] = useState<any>();
+
+  // WebRTC video calling
+  const [me, setMe] = useState<string>("");
+  const [stream, setStream] = useState<any>();
+  const [receivingCall, setReceivingCall] = useState<boolean>(false);
+  const [caller, setCaller] = useState<string>("");
+  const [callerSignal, setCallerSignal] = useState<any>();
+  const [callAccepted, setCallAccepted] = useState<boolean>(false);
+  // const [idToCall, setIdToCall] = useState<string>("");
+  const [callEnded, setCallEnded] = useState<boolean>(false);
+  const [name, setName] = useState<string>("");
+  const myVideo = useRef<HTMLVideoElement>(null); // Update the ref type
+  const userVideo = useRef<HTMLVideoElement>(null); // Update the ref type
+  const connectionRef = useRef<any>();
 
   const { logOut, userId, username, avatar } = authStore((state) => state);
 
@@ -56,15 +73,193 @@ const Chat: FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (chats && chats.length > 0) {
+      setSelectedChat(chats[0]);
+    }
+  }, [chats]);
+
+  useEffect(() => {
     const ws = new WebSocket(`${API_URL.replace(/^http/, "ws")}`);
     setWs(ws);
   }, []);
 
   useEffect(() => {
-    if (chats && chats.length > 0) {
-      setSelectedChat(chats[0]);
+    if (!ws) return;
+
+    navigator.mediaDevices
+      .getUserMedia({ video: true, audio: true })
+      .then((stream: MediaStream) => {
+        setStream(stream);
+        if (userVideo.current) {
+          userVideo.current.srcObject = stream;
+        }
+      });
+
+    ws.onopen = () => {
+      console.log("WebSocket connected");
+      ws.send(JSON.stringify({ type: "login", username, avatar, userId }));
+    };
+    if (ws) {
+      ws.onmessage = (event: any) => {
+        const messageData = JSON.parse(event.data);
+        if (messageData.type == "receive_message") {
+          setSelectedChat((prevChat: any) => {
+            const chat = { ...prevChat };
+            chat.messages = [...chat.messages, messageData.message];
+            return chat;
+          });
+          console.log("receive message", messageData);
+        } else if (messageData.type === "connected_users") {
+          setConnectedUsers(messageData.users);
+          console.log("connected users", messageData.users);
+        } else if (messageData.type === "public_chat") {
+          setPublicMessages((prevMessages) => [
+            ...prevMessages,
+            messageData.message,
+          ]);
+          console.log("public chat", messageData);
+        } else if (messageData.type === "join_room") {
+          setConnectedUsers(messageData.users);
+          console.log("join room", messageData);
+        } else if (messageData.type === "callUser") {
+          console.log("call user", messageData);
+          // setReceivingCall(true);
+          // setCaller(messageData.from);
+          // setName(messageData.name);
+          // setCallerSignal(messageData.signal);
+        }
+      };
     }
-  }, [chats]);
+    return () => {
+      ws.onclose = () => {
+        console.log("WebSocket disconnected");
+      };
+    };
+  }, [ws, username, avatar]);
+
+  useEffect(() => {
+    console.log("connected Users", connectedUsers);
+  }, [connectedUsers]);
+
+  useEffect(() => {
+    console.log("public messages", publicMessages);
+  }, [publicMessages]);
+
+  // WebRTC video calling
+  const callUser = (id: any) => {
+    const peer = new Peer({
+      initiator: true,
+      trickle: false,
+      stream: stream,
+    });
+    peer.on("signal", (data) => {
+      ws.send(
+        JSON.stringify({
+          type: "callUser",
+          userToCall: userId,
+          signalData: data,
+          from: userId,
+          name: username,
+        })
+      );
+    });
+
+    peer.on("stream", (stream) => {
+      if (userVideo.current) {
+        userVideo.current.srcObject = stream;
+      }
+    });
+    ws.onmessage = (event: any) => {
+      const messageData = JSON.parse(event.data);
+      if (messageData.type === "answerCall") {
+        peer.signal(messageData.signal);
+      }
+    };
+
+    connectionRef.current = peer;
+  };
+
+  const answerCall = () => {
+    setCallAccepted(true);
+    const peer = new Peer({
+      initiator: false,
+      trickle: false,
+      stream: stream,
+    });
+    peer.on("signal", (data) => {
+      ws.send(
+        JSON.stringify({
+          type: "answerCall",
+          signal: data,
+          to: caller,
+        })
+      );
+    });
+
+    peer.on("stream", (stream) => {
+      if (userVideo.current) {
+        userVideo.current.srcObject = stream;
+      }
+    });
+
+    peer.signal(callerSignal);
+    connectionRef.current = peer;
+  };
+
+  const leaveCall = () => {
+    setCallEnded(true);
+    connectionRef.current.destroy();
+  };
+  const handleVideoCall = (userId: string) => {
+    if (!stream) {
+      console.error("Stream not available");
+      return;
+    }
+
+    const peerConnection = new RTCPeerConnection();
+
+    // Add local stream to peer connection
+    stream.getTracks().forEach((track: any) => {
+      peerConnection.addTrack(track, stream);
+    });
+
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        // Send the ICE candidate to the other peer
+        ws?.send(
+          JSON.stringify({
+            type: "callUser",
+            targetUserId: userId,
+            signal: event.candidate,
+            from: userId,
+            name: username,
+          })
+        );
+      }
+    };
+
+    // Create offer
+    peerConnection
+      .createOffer()
+      .then((offer) => {
+        return peerConnection.setLocalDescription(offer);
+      })
+      .then(() => {
+        // Send the offer to the other peer
+        ws?.send(
+          JSON.stringify({
+            type: "callUser",
+            targetUserId: userId,
+            signal: peerConnection.localDescription,
+            from: userId,
+            name: username,
+          })
+        );
+      })
+      .catch((error) => {
+        console.error("Error creating offer:", error);
+      });
+  };
 
   const createPrivateChat = (memberId: string) => {
     const members = [userId, memberId];
@@ -80,7 +275,6 @@ const Chat: FC = () => {
           refetch().then(() => {
             navigate(`/chat/${data.chat._id}`);
           });
-          ws.send(JSON.stringify({ type: "join_room", room: data.id }));
         },
       }
     );
@@ -174,44 +368,6 @@ const Chat: FC = () => {
     setIsImageMessage(true);
     return imageUrl;
   };
-
-  useEffect(() => {
-    if (!ws) return;
-    ws.onopen = () => {
-      console.log("WebSocket connected");
-      ws.send(JSON.stringify({ type: "login", username, avatar, userId }));
-    };
-    if (ws) {
-      ws.onmessage = (event: any) => {
-        const messageData = JSON.parse(event.data);
-        if (messageData.type == "receive_message") {
-          setSelectedChat((prevChat: any) => {
-            const chat = { ...prevChat };
-            chat.messages = [...chat.messages, messageData.message];
-            return chat;
-          });
-          console.log("receive message", messageData);
-        } else if (messageData.type === "connected_users") {
-          setConnectedUsers(messageData.users);
-          console.log("connected users", messageData.users);
-        } else if (messageData.type === "public_chat") {
-          setPublicMessages((prevMessages) => [
-            ...prevMessages,
-            messageData.message,
-          ]);
-          console.log("public chat", messageData);
-        }
-      };
-    }
-  }, [ws, username, avatar]);
-
-  useEffect(() => {
-    console.log("connected Users", connectedUsers);
-  }, [connectedUsers]);
-
-  useEffect(() => {
-    console.log("public messages", publicMessages);
-  }, [publicMessages]);
 
   return (
     <div className="chat-container">
@@ -439,7 +595,12 @@ const Chat: FC = () => {
                     className="connected-user-options-content"
                     style={{ borderTop: "1px solid rgb(0,0,0,0.1)" }}
                   >
-                    <div>Make Video Call</div>
+                    <div
+                      onClick={() => handleVideoCall(user.userId)}
+                      style={{ color: "red" }}
+                    >
+                      Make Video Call
+                    </div>
                     <IoVideocam className="boxes-content" />
                   </div>
                 </div>
@@ -457,6 +618,33 @@ const Chat: FC = () => {
           </div>
         </div>
       </div>
+      <>
+        <div className="container">
+          <div className="video-container">
+            <div className="video">
+              {stream && (
+                <video
+                  playsInline
+                  muted
+                  ref={myVideo}
+                  autoPlay
+                  style={{ width: "300px" }}
+                />
+              )}
+            </div>
+            <div className="video">
+              {callAccepted && !callEnded ? (
+                <video
+                  playsInline
+                  ref={userVideo}
+                  autoPlay
+                  style={{ width: "300px" }}
+                />
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </>
     </div>
   );
 };

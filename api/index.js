@@ -67,14 +67,12 @@ wsServer.on("connection", (ws) => {
 
     if (data.type === "send_message") {
       wsServer.clients.forEach((client) => {
-        // if (client.room === data.room) {
         client.send(
           JSON.stringify({
             type: "receive_message",
             message: data.message,
           })
         );
-        // }
       });
       console.log("receive_message", data);
     }
@@ -93,6 +91,23 @@ wsServer.on("connection", (ws) => {
       });
 
       console.log("public_chat", data);
+    }
+    if (data.type === "callUser") {
+      forwardToUser(data.targetUserId, {
+        type: "callUser",
+        signal: data.signal,
+        from: data.from,
+        name: data.name,
+      });
+      console.log("callUser", data);
+    }
+    if (data.type === "answerCall") {
+      forwardToUser(data.targetUserId, {
+        type: "answerCall",
+        signal: data.signal,
+        from: data.from,
+      });
+      console.log("answerCall", data);
     }
   });
 
@@ -115,6 +130,15 @@ function broadcastConnectedUsers() {
   wsServer.clients.forEach((client) => {
     client.send(JSON.stringify({ type: "connected_users", users: usersList }));
   });
+}
+
+function forwardToUser(targetUserId, message) {
+  for (const user of connectedUsers.values()) {
+    if (user.userId === targetUserId) {
+      user.ws.send(JSON.stringify(message));
+      break;
+    }
+  }
 }
 
 mongoose.connect(process.env.DB_CONNECTION).then(() => {

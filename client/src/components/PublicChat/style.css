@@ -1,0 +1,23 @@
+.exit-public-chat {
+  padding: 10px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  /* font-size: 18px; */
+  height: 40px;
+  cursor: pointer;
+}
+
+.exit-public-chat:hover {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.public-message-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 15px;
+  margin: 10px;
+  max-width: 300px;
+  word-wrap: break-word;
+}

@@ -1,7 +1,7 @@
 import { User } from "./user";
 
 export interface NewChat {
-  name: string;
+  name?: string;
   type: string;
   members: string[];
 }
@@ -13,7 +13,7 @@ export interface NewMessage {
 
 export interface Chat {
   id: string;
-  name: string;
+  name?: string;
   type: string;
   creatorId: User;
   members: string[];

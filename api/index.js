@@ -39,7 +39,7 @@ const wsServer = new ws.Server({ server: http });
 const connectedUsers = new Map();
 
 wsServer.on("connection", (ws) => {
-  console.log(`user connected`);
+  console.log(`socket connected`, ws.id);
 
   ws.on("message", (message) => {
     const data = JSON.parse(message);
@@ -92,13 +92,7 @@ wsServer.on("connection", (ws) => {
 
       console.log("public_chat", data);
     }
-    if (data.type === "candidate") {
-    }
-    if (data.type === "sdp") {
-    }
-    if (data.type === "sdpRemote") {
-      forwardToUser(data.targetUserId, data);
-    }
+
     if (data.type === "dispatchEvent") {
       wsServer.clients.forEach((client) => {
         client.send(

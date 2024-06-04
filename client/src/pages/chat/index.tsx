@@ -168,21 +168,6 @@ const Chat: FC = () => {
       attachMediaStream(remoteViewRef.current, evt.stream);
     };
 
-    // navigator.mediaDevices
-    //   .getUserMedia({ video: true, audio: true })
-    //   .then(function (stream) {
-    //     console.log("Stream received:", stream);
-    //     // Attach local media stream to video element
-    //     attachMediaStream(selfViewRef.current, stream);
-    //     // Attach stream to the RTC connection
-    //     rtcConnectionRef.current.addStream(stream);
-    //   })
-    //   .catch(function (err: any) {
-    //     console.log(
-    //       "##ERROR: There was an error getting the requested media#",
-    //       err
-    //     );
-    //   });
     navigator.mediaDevices
       .getUserMedia({ video: true, audio: true })
       .then(function (stream) {

@@ -3,7 +3,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Chat from "./pages/chat";
 import Signup from "./pages/auth/signup";
 import Signin from "./pages/auth/signin";
-
+import Video from "./pages/video";
 function App() {
   return (
     <>
@@ -14,6 +14,7 @@ function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/signin" element={<Signin />} />
           <Route path="/" element={<Signin />} />
+          <Route path="/video-call" element={<Video />} />
         </Routes>
       </BrowserRouter>
     </>

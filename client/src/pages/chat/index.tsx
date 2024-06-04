@@ -11,6 +11,8 @@ import { IoIosSend } from "react-icons/io";
 import { createChat, getChats, sendMessage } from "../../services/chat";
 import { authStore } from "../../store/authStore";
 import { useNavigate } from "react-router-dom";
+import Signaling from "../../utils/signaling";
+
 import {
   Chat as ChatProp,
   Message,
@@ -21,7 +23,6 @@ import PublicChat from "../../components/PublicChat";
 import { FaArrowRightToBracket } from "react-icons/fa6";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { GrGallery } from "react-icons/gr";
-import Peer from "simple-peer";
 
 const Chat: FC = () => {
   const [selectedChat, setSelectedChat] = useState<any>();
@@ -37,23 +38,16 @@ const Chat: FC = () => {
     useState<boolean>(false);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [isImageMessage, setIsImageMessage] = useState<boolean>(false);
+  const [isCallOpen, setIsCallOpen] = useState<boolean>(false);
 
   // webSockets
   const [ws, setWs] = useState<any>();
 
   // WebRTC video calling
-  const [me, setMe] = useState<string>("");
-  const [stream, setStream] = useState<any>();
-  const [receivingCall, setReceivingCall] = useState<boolean>(false);
-  const [caller, setCaller] = useState<string>("");
-  const [callerSignal, setCallerSignal] = useState<any>();
-  const [callAccepted, setCallAccepted] = useState<boolean>(false);
-  // const [idToCall, setIdToCall] = useState<string>("");
-  const [callEnded, setCallEnded] = useState<boolean>(false);
-  const [name, setName] = useState<string>("");
-  const myVideo = useRef<HTMLVideoElement>(null); // Update the ref type
-  const userVideo = useRef<HTMLVideoElement>(null); // Update the ref type
-  const connectionRef = useRef<any>();
+  const selfViewRef = useRef(null) as any;
+  const remoteViewRef = useRef(null) as any;
+  const rtcConnectionRef = useRef(null) as any;
+  const signalingRef = useRef(null) as any;
 
   const { logOut, userId, username, avatar } = authStore((state) => state);
 
@@ -73,6 +67,18 @@ const Chat: FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Setup local cam and signaling server
+    // setupConnection();
+
+    return () => {
+      // Cleanup
+      if (rtcConnectionRef.current) {
+        rtcConnectionRef.current.close();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (chats && chats.length > 0) {
       setSelectedChat(chats[0]);
     }
@@ -85,15 +91,6 @@ const Chat: FC = () => {
 
   useEffect(() => {
     if (!ws) return;
-
-    navigator.mediaDevices
-      .getUserMedia({ video: true, audio: true })
-      .then((stream: MediaStream) => {
-        setStream(stream);
-        if (userVideo.current) {
-          userVideo.current.srcObject = stream;
-        }
-      });
 
     ws.onopen = () => {
       console.log("WebSocket connected");
@@ -118,15 +115,6 @@ const Chat: FC = () => {
             messageData.message,
           ]);
           console.log("public chat", messageData);
-        } else if (messageData.type === "join_room") {
-          setConnectedUsers(messageData.users);
-          console.log("join room", messageData);
-        } else if (messageData.type === "callUser") {
-          console.log("call user", messageData);
-          // setReceivingCall(true);
-          // setCaller(messageData.from);
-          // setName(messageData.name);
-          // setCallerSignal(messageData.signal);
         }
       };
     }
@@ -146,119 +134,146 @@ const Chat: FC = () => {
   }, [publicMessages]);
 
   // WebRTC video calling
-  const callUser = (id: any) => {
-    const peer = new Peer({
-      initiator: true,
-      trickle: false,
-      stream: stream,
-    });
-    peer.on("signal", (data) => {
-      ws.send(
-        JSON.stringify({
-          type: "callUser",
-          userToCall: userId,
-          signalData: data,
-          from: userId,
-          name: username,
-        })
-      );
+  function setupConnection() {
+    // Uncomment to use NodeJS sample
+    signalingRef.current = new Signaling("ws://localhost:8080");
+
+    // For own implementation use same API or comment out signaling methods and implement own API
+    signalingRef.current.onMessage(onSignalingEvent);
+
+    // Create new rtc connection
+    rtcConnectionRef.current = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19305" }],
     });
 
-    peer.on("stream", (stream) => {
-      if (userVideo.current) {
-        userVideo.current.srcObject = stream;
-      }
-    });
-    ws.onmessage = (event: any) => {
-      const messageData = JSON.parse(event.data);
-      if (messageData.type === "answerCall") {
-        peer.signal(messageData.signal);
-      }
+    // Listen to rtc events
+    rtcConnectionRef.current.onicecandidate = function (evt: any) {
+      if (evt.candidate !== undefined)
+        signalingRef.current.send(
+          JSON.stringify({ type: "candidate", candidate: evt.candidate })
+        );
     };
 
-    connectionRef.current = peer;
-  };
-
-  const answerCall = () => {
-    setCallAccepted(true);
-    const peer = new Peer({
-      initiator: false,
-      trickle: false,
-      stream: stream,
-    });
-    peer.on("signal", (data) => {
-      ws.send(
-        JSON.stringify({
-          type: "answerCall",
-          signal: data,
-          to: caller,
-        })
-      );
-    });
-
-    peer.on("stream", (stream) => {
-      if (userVideo.current) {
-        userVideo.current.srcObject = stream;
-      }
-    });
-
-    peer.signal(callerSignal);
-    connectionRef.current = peer;
-  };
-
-  const leaveCall = () => {
-    setCallEnded(true);
-    connectionRef.current.destroy();
-  };
-  const handleVideoCall = (userId: string) => {
-    if (!stream) {
-      console.error("Stream not available");
-      return;
-    }
-
-    const peerConnection = new RTCPeerConnection();
-
-    // Add local stream to peer connection
-    stream.getTracks().forEach((track: any) => {
-      peerConnection.addTrack(track, stream);
-    });
-
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate) {
-        // Send the ICE candidate to the other peer
-        ws?.send(
-          JSON.stringify({
-            type: "callUser",
-            targetUserId: userId,
-            signal: event.candidate,
-            from: userId,
-            name: username,
-          })
-        );
-      }
+    rtcConnectionRef.current.oniceconnectionstatechange = function (evt: any) {
+      console.log("ICE connection state change:", evt);
     };
 
-    // Create offer
-    peerConnection
-      .createOffer()
-      .then((offer) => {
-        return peerConnection.setLocalDescription(offer);
+    rtcConnectionRef.current.onicegatheringstatechange = function (evt: any) {
+      console.log("ICE gathering state change:", evt);
+    };
+
+    rtcConnectionRef.current.onaddstream = function (evt: any) {
+      remoteViewRef.current.setAttribute("style", null);
+      // // Attach incoming stream to remote view
+      attachMediaStream(remoteViewRef.current, evt.stream);
+    };
+
+    // navigator.mediaDevices
+    //   .getUserMedia({ video: true, audio: true })
+    //   .then(function (stream) {
+    //     console.log("Stream received:", stream);
+    //     // Attach local media stream to video element
+    //     attachMediaStream(selfViewRef.current, stream);
+    //     // Attach stream to the RTC connection
+    //     rtcConnectionRef.current.addStream(stream);
+    //   })
+    //   .catch(function (err: any) {
+    //     console.log(
+    //       "##ERROR: There was an error getting the requested media#",
+    //       err
+    //     );
+    //   });
+    navigator.mediaDevices
+      .getUserMedia({ video: true, audio: true })
+      .then(function (stream) {
+        console.log("Stream received:", stream);
+        // Attach local media stream to video element
+        attachMediaStream(selfViewRef.current, stream);
+        // Attach stream to the RTC connection
+        stream.getTracks().forEach((track) => {
+          rtcConnectionRef.current.addTrack(track, stream);
+        });
       })
-      .then(() => {
-        // Send the offer to the other peer
-        ws?.send(
-          JSON.stringify({
-            type: "callUser",
-            targetUserId: userId,
-            signal: peerConnection.localDescription,
-            from: userId,
-            name: username,
-          })
+      .catch(function (err: any) {
+        console.log(
+          "##ERROR: There was an error getting the requested media#",
+          err
         );
-      })
-      .catch((error) => {
-        console.error("Error creating offer:", error);
       });
+  }
+
+  async function onSignalingEvent(event: any) {
+    try {
+      // console.log("Signaling event:", event);
+      // Parse data
+      // event = JSON.parse(event);
+      switch (event.type) {
+        case "candidate":
+          rtcConnectionRef.current?.addIceCandidate(
+            new RTCIceCandidate(event.candidate)
+          );
+          break;
+        case "sdp":
+          // Gets description from caller and set it to RTC connection
+          rtcConnectionRef.current?.setRemoteDescription(
+            new RTCSessionDescription(event.sdp)
+          );
+
+          rtcConnectionRef.current?.createAnswer(function (desc: any) {
+            rtcConnectionRef.current?.setLocalDescription(desc);
+            signalingRef.current.send(
+              JSON.stringify({
+                type: "sdp",
+                sdp: desc,
+              })
+            );
+          });
+          break;
+        case "sdpRemote":
+          // Get the description from the caller and set it to the RTC connection
+          rtcConnectionRef.current.setRemoteDescription(
+            new RTCSessionDescription(event.sdp)
+          );
+          break;
+        case "connected_users":
+          setConnectedUsers(event.users);
+          console.log("Connected users:", event.users);
+          break;
+
+        default:
+          console.log("Unknown signaling event type:", event.type);
+          break;
+      }
+    } catch (error) {
+      console.error("Failed to parse signaling event:", error);
+    }
+  }
+
+  // Attaches the stream to target video element
+  function attachMediaStream(video: HTMLVideoElement, stream: any) {
+    const videoTracks = stream.getVideoTracks();
+    console.log(`Using video device: ${videoTracks[0].label}`);
+    video.srcObject = stream;
+  }
+
+  const handleVideoCall = async (user: any) => {
+    setupConnection();
+    setIsCallOpen(true);
+    try {
+      rtcConnectionRef.current.createOffer(function (desc: any) {
+        rtcConnectionRef.current.setLocalDescription(desc);
+        signalingRef.current.send(
+          JSON.stringify({
+            type: "sdp",
+            sdp: desc,
+            targetUserId: user.userId, // Send the target user's ID
+          })
+        );
+        console.log("user", user);
+      });
+    } catch (error) {
+      console.error("##ERROR:There was an error with the description#", error);
+    }
   };
 
   const createPrivateChat = (memberId: string) => {
@@ -347,9 +362,9 @@ const Chat: FC = () => {
     );
   };
 
-  const handleSelectedUserOptions = (id: string) => {
-    if (userId !== id) {
-      setSelectedUserId(id);
+  const handleSelectedUserOptions = (user: any) => {
+    if (userId !== user.userId) {
+      setSelectedUserId(user.userId);
       setIsConnectedUserOptions(!isConnectedUserOptions);
     }
   };
@@ -370,282 +385,292 @@ const Chat: FC = () => {
   };
 
   return (
-    <div className="chat-container">
-      {isPublicChat ? (
-        <PublicChat
-          setIsPublicChat={() => setIsPublicChat(!isPublicChat)}
-          messages={publicMessages}
-          handleNewMessage={handlePublicMessage}
-          newMessage={publicInput}
-          setNewMessage={setPublicInput}
-          userId={userId}
-          avatar={avatar}
-        />
-      ) : (
-        <>
-          <div className="chats-container">
-            <div className="heading-text">{username}'s Inbox</div>
-            <div className="public-chat" onClick={() => setIsPublicChat(true)}>
-              <div>Go to Public Chat</div>
-              <FaArrowRightToBracket
-                className="boxes-content"
-                style={{
-                  marginBottom: "4px",
-                }}
-              />
-            </div>
-            {chats?.map((chat: ChatProp, index: number) => (
+    <>
+      <div className="chat-container">
+        {isPublicChat ? (
+          <PublicChat
+            setIsPublicChat={() => setIsPublicChat(!isPublicChat)}
+            messages={publicMessages}
+            handleNewMessage={handlePublicMessage}
+            newMessage={publicInput}
+            setNewMessage={setPublicInput}
+            userId={userId}
+            avatar={avatar}
+          />
+        ) : (
+          <>
+            <div className="chats-container">
+              <div className="heading-text">{username}'s Inbox</div>
               <div
-                key={index}
-                className="chats-content"
-                onClick={() => handleSelectedChat(chat.id)}
+                className="public-chat"
+                onClick={() => setIsPublicChat(true)}
               >
-                <div className="chats-info">
-                  <img
-                    src={handleChatAvatar(chat)}
-                    alt=""
-                    style={{
-                      width: "30px",
-                      height: "30px",
-                      borderRadius: "50%",
-                    }}
-                  />
-                  <div>
-                    <div style={{ fontWeight: "bold" }}>
-                      {" "}
-                      {handleChatName(chat)}
-                    </div>
-                    <div
-                      style={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        maxWidth: "300px",
-                        whiteSpace: "nowrap",
-                        width: "100%",
-                      }}
-                    >
-                      {chat.messages[chat.messages.length - 1]?.message}
-                    </div>
-                  </div>
-                </div>
+                <div>Go to Public Chat</div>
+                <FaArrowRightToBracket
+                  className="boxes-content"
+                  style={{
+                    marginBottom: "4px",
+                  }}
+                />
               </div>
-            ))}
-          </div>
-
-          <div className="selected-chat-container">
-            <div className="heading-text">{handleChatName(selectedChat)}</div>
-            {!selectedChat && (
-              <div
-                style={{
-                  marginTop: "20px",
-                  textAlign: "center",
-                  letterSpacing: "2px",
-                  textShadow: "1px 1px 1px rgba(0,0,0,0.2)",
-                }}
-              >
-                <p>
-                  You have no messages yet. Click on a user to start a chat.
-                </p>
-              </div>
-            )}
-            <div className="message-list">
-              {selectedChat?.messages.map((message: Message, index: number) => (
+              {chats?.map((chat: ChatProp, index: number) => (
                 <div
                   key={index}
-                  className="message-container"
-                  style={{
-                    alignSelf:
-                      message.sender.id === userId ? "flex-end" : "flex-start",
-                    flexDirection:
-                      message.sender.id === userId ? "row-reverse" : "row",
-                  }}
+                  className="chats-content"
+                  onClick={() => handleSelectedChat(chat.id)}
                 >
-                  <img
-                    src={
-                      message.sender.avatar === ""
-                        ? "https://w7.pngwing.com/pngs/529/816/png-transparent-computer-icons-user-profile-avatar-heroes-monochrome-black.png"
-                        : message.sender.avatar
-                    }
-                    alt=""
-                    style={{
-                      width: "30px",
-                      height: "30px",
-                      borderRadius: "50%",
-                      marginTop: "16px",
-                    }}
-                  />
-                  {message.message && (
-                    <div
-                      className="message-content"
-                      style={{
-                        backgroundColor:
-                          message.sender.id === userId
-                            ? "rgb(240, 248, 255, 0.6)"
-                            : "rgba(0, 0, 0, 0.1)",
-                      }}
-                    >
-                      {message.message}
-                    </div>
-                  )}
-                  {message.image && (
+                  <div className="chats-info">
                     <img
-                      src={message.image}
-                      alt=""
-                      style={{
-                        width: "100px",
-                        height: "100px",
-                        borderRadius: "10px",
-                      }}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-            {selectedChat && (
-              <div className="message-input-container">
-                {!isImageMessage ? (
-                  <input
-                    className="message-input-content"
-                    type="text"
-                    placeholder="Type a message..."
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === "Enter") handleNewMessage();
-                    }}
-                  />
-                ) : (
-                  <div className="image-input-content">
-                    <img
-                      src={image}
+                      src={handleChatAvatar(chat)}
                       alt=""
                       style={{
                         width: "30px",
                         height: "30px",
-                        borderRadius: "10px",
+                        borderRadius: "50%",
                       }}
                     />
+                    <div>
+                      <div style={{ fontWeight: "bold" }}>
+                        {" "}
+                        {handleChatName(chat)}
+                      </div>
+                      <div
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          maxWidth: "300px",
+                          whiteSpace: "nowrap",
+                          width: "100%",
+                        }}
+                      >
+                        {chat.messages[chat.messages.length - 1]?.message}
+                      </div>
+                    </div>
                   </div>
-                )}
-
-                <Button
-                  icon={<GrGallery />}
-                  buttonText="Image"
-                  onClick={handleGallery}
-                ></Button>
-                <Button
-                  icon={<IoSend />}
-                  buttonText="Send"
-                  onClick={handleNewMessage}
-                ></Button>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      <div className="online-users-container">
-        <div className="online-users-content">
-          {connectedUsers.map((user: any, index: number) => (
-            <div key={index}>
-              <div
-                className="online-users-box"
-                style={{
-                  borderRadius: index === 0 ? "0 15px 15px 15px" : "15px",
-                }}
-                onClick={() => handleSelectedUserOptions(user.userId)}
-              >
-                <div className="boxes-content">
-                  <RiRadioButtonLine color="green" />
                 </div>
+              ))}
+            </div>
+
+            <div className="selected-chat-container">
+              <div className="heading-text">{handleChatName(selectedChat)}</div>
+              {!selectedChat && (
                 <div
                   style={{
-                    alignContent: "center",
-                    paddingTop: "4px",
+                    marginTop: "20px",
+                    textAlign: "center",
+                    letterSpacing: "2px",
+                    textShadow: "1px 1px 1px rgba(0,0,0,0.2)",
                   }}
                 >
-                  <img
-                    src={
-                      user.avatar === ""
-                        ? "https://w7.pngwing.com/pngs/529/816/png-transparent-computer-icons-user-profile-avatar-heroes-monochrome-black.png"
-                        : user.avatar
-                    }
-                    alt=""
-                    style={{
-                      width: "30px",
-                      height: "30px",
-                      borderRadius: "50%",
-                    }}
-                  />
+                  <p>
+                    You have no messages yet. Click on a user to start a chat.
+                  </p>
                 </div>
-                <div>
-                  <p>{user.username}</p>
-                </div>
-              </div>
-              {isConnectedUserOptions && selectedUserId === user.userId && (
-                <div className="connected-user-options-container">
-                  <div
-                    className="connected-user-options-content"
-                    onClick={() => createPrivateChat(user.userId)}
-                  >
-                    <div>Send Message</div>
-                    <IoIosSend className="boxes-content" />
-                  </div>
-                  <div
-                    className="connected-user-options-content"
-                    style={{ borderTop: "1px solid rgb(0,0,0,0.1)" }}
-                  >
+              )}
+              <div className="message-list">
+                {selectedChat?.messages.map(
+                  (message: Message, index: number) => (
                     <div
-                      onClick={() => handleVideoCall(user.userId)}
-                      style={{ color: "red" }}
+                      key={index}
+                      className="message-container"
+                      style={{
+                        alignSelf:
+                          message.sender.id === userId
+                            ? "flex-end"
+                            : "flex-start",
+                        flexDirection:
+                          message.sender.id === userId ? "row-reverse" : "row",
+                      }}
                     >
-                      Make Video Call
+                      <img
+                        src={
+                          message.sender.avatar === ""
+                            ? "https://w7.pngwing.com/pngs/529/816/png-transparent-computer-icons-user-profile-avatar-heroes-monochrome-black.png"
+                            : message.sender.avatar
+                        }
+                        alt=""
+                        style={{
+                          width: "30px",
+                          height: "30px",
+                          borderRadius: "50%",
+                          marginTop: "16px",
+                        }}
+                      />
+                      {message.message && (
+                        <div
+                          className="message-content"
+                          style={{
+                            backgroundColor:
+                              message.sender.id === userId
+                                ? "rgb(240, 248, 255, 0.6)"
+                                : "rgba(0, 0, 0, 0.1)",
+                          }}
+                        >
+                          {message.message}
+                        </div>
+                      )}
+                      {message.image && (
+                        <img
+                          src={message.image}
+                          alt=""
+                          style={{
+                            width: "100px",
+                            height: "100px",
+                            borderRadius: "10px",
+                          }}
+                        />
+                      )}
                     </div>
-                    <IoVideocam className="boxes-content" />
-                  </div>
+                  )
+                )}
+              </div>
+              {selectedChat && (
+                <div className="message-input-container">
+                  {!isImageMessage ? (
+                    <input
+                      className="message-input-content"
+                      type="text"
+                      placeholder="Type a message..."
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === "Enter") handleNewMessage();
+                      }}
+                    />
+                  ) : (
+                    <div className="image-input-content">
+                      <img
+                        src={image}
+                        alt=""
+                        style={{
+                          width: "30px",
+                          height: "30px",
+                          borderRadius: "10px",
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <Button
+                    icon={<GrGallery />}
+                    buttonText="Image"
+                    onClick={handleGallery}
+                  ></Button>
+                  <Button
+                    icon={<IoSend />}
+                    buttonText="Send"
+                    onClick={handleNewMessage}
+                  ></Button>
                 </div>
               )}
             </div>
-          ))}
-        </div>
+          </>
+        )}
 
-        <div className="logout-button" onClick={handleLogout}>
-          <div>
-            <p>logout</p>
+        <div className="online-users-container">
+          <div className="online-users-content">
+            {connectedUsers.map((user: any, index: number) => (
+              <div key={index}>
+                <div
+                  className="online-users-box"
+                  style={{
+                    borderRadius: index === 0 ? "0 15px 15px 15px" : "15px",
+                  }}
+                  onClick={() => handleSelectedUserOptions(user)}
+                >
+                  <div className="boxes-content">
+                    <RiRadioButtonLine color="green" />
+                  </div>
+                  <div
+                    style={{
+                      alignContent: "center",
+                      paddingTop: "4px",
+                    }}
+                  >
+                    <img
+                      src={
+                        user.avatar === ""
+                          ? "https://w7.pngwing.com/pngs/529/816/png-transparent-computer-icons-user-profile-avatar-heroes-monochrome-black.png"
+                          : user.avatar
+                      }
+                      alt=""
+                      style={{
+                        width: "30px",
+                        height: "30px",
+                        borderRadius: "50%",
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <p>{user.username}</p>
+                  </div>
+                </div>
+                {isConnectedUserOptions && selectedUserId === user.userId && (
+                  <div className="connected-user-options-container">
+                    <div
+                      className="connected-user-options-content"
+                      onClick={() => createPrivateChat(user.userId)}
+                    >
+                      <div>Send Message</div>
+                      <IoIosSend className="boxes-content" />
+                    </div>
+                    <div
+                      className="connected-user-options-content"
+                      style={{ borderTop: "1px solid rgb(0,0,0,0.1)" }}
+                    >
+                      <div
+                        onClick={() => handleVideoCall(user)}
+                        style={{ color: "red" }}
+                      >
+                        Make Video Call
+                      </div>
+                      <IoVideocam className="boxes-content" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-          <div className="boxes-content">
-            <AiOutlineLogout />
+
+          <div className="logout-button" onClick={handleLogout}>
+            <div>
+              <p>logout</p>
+            </div>
+            <div className="boxes-content">
+              <AiOutlineLogout />
+            </div>
           </div>
         </div>
       </div>
       <>
-        <div className="container">
-          <div className="video-container">
-            <div className="video">
-              {stream && (
-                <video
-                  playsInline
-                  muted
-                  ref={myVideo}
-                  autoPlay
-                  style={{ width: "300px" }}
-                />
-              )}
-            </div>
-            <div className="video">
-              {callAccepted && !callEnded ? (
-                <video
-                  playsInline
-                  ref={userVideo}
-                  autoPlay
-                  style={{ width: "300px" }}
-                />
-              ) : null}
-            </div>
+        {isCallOpen && (
+          <div className="video-call-container">
+            <video
+              ref={selfViewRef}
+              autoPlay
+              width="320"
+              height="240"
+              style={{ backgroundColor: "#000000", borderRadius: "10px" }}
+            ></video>
+            <video
+              ref={remoteViewRef}
+              autoPlay
+              width="320"
+              height="240"
+              style={{ backgroundColor: "#000000", borderRadius: "10px" }}
+            ></video>
+            <button
+              onClick={() => {
+                rtcConnectionRef.current.close();
+                setIsCallOpen(false);
+              }}
+            >
+              End Call
+            </button>
           </div>
-        </div>
+        )}
       </>
-    </div>
+    </>
   );
 };
 export default Chat;

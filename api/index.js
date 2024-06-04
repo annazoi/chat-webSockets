@@ -92,22 +92,23 @@ wsServer.on("connection", (ws) => {
 
       console.log("public_chat", data);
     }
-    if (data.type === "callUser") {
-      forwardToUser(data.targetUserId, {
-        type: "callUser",
-        signal: data.signal,
-        from: data.from,
-        name: data.name,
-      });
-      console.log("callUser", data);
+    if (data.type === "candidate") {
     }
-    if (data.type === "answerCall") {
-      forwardToUser(data.targetUserId, {
-        type: "answerCall",
-        signal: data.signal,
-        from: data.from,
+    if (data.type === "sdp") {
+    }
+    if (data.type === "sdpRemote") {
+      forwardToUser(data.targetUserId, data);
+    }
+    if (data.type === "dispatchEvent") {
+      wsServer.clients.forEach((client) => {
+        client.send(
+          JSON.stringify({
+            type: "onEvent",
+            data: data.data,
+          })
+        );
       });
-      console.log("answerCall", data);
+      console.log("dispatchEvent", data);
     }
   });
 
@@ -121,7 +122,6 @@ wsServer.on("connection", (ws) => {
 });
 
 function broadcastConnectedUsers() {
-  // const usersList = Array.from(connectedUsers.keys());
   const usersList = Array.from(connectedUsers.values()).map((user) => ({
     username: user.username,
     avatar: user.avatar,
@@ -139,6 +139,14 @@ function forwardToUser(targetUserId, message) {
       break;
     }
   }
+}
+
+function broadcast(data, excludeWs) {
+  wss.clients.forEach(function each(client) {
+    if (client.readyState === WebSocket.OPEN && client !== excludeWs) {
+      client.send(JSON.stringify(data));
+    }
+  });
 }
 
 mongoose.connect(process.env.DB_CONNECTION).then(() => {

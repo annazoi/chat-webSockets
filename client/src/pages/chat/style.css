@@ -195,6 +195,22 @@
   background-color: rgba(0, 0, 0, 0.2);
 }
 
+.video-call-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  min-width: 100vw;
+  min-height: 100vh;
+  background-color: rgba(0, 0, 0, 0.5);
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  border-radius: 10px;
+}
+
 /* @media (max-width: 1024px) {
   .chats-container {
     display: none;

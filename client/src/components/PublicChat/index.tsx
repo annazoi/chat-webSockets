@@ -23,6 +23,7 @@ const PublicChat: FC<PublicChatProps> = ({
   setNewMessage,
   userId,
   socket,
+  avatar,
 }) => {
   useEffect(() => {
     console.log(messages);

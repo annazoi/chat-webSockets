@@ -58,7 +58,7 @@ const PublicChat: FC<PublicChatProps> = ({
                 src={
                   message.avatar === ""
                     ? "https://w7.pngwing.com/pngs/529/816/png-transparent-computer-icons-user-profile-avatar-heroes-monochrome-black.png"
-                    : message.avatar
+                    : avatar
                 }
                 alt=""
                 style={{

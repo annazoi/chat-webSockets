@@ -12,6 +12,7 @@ interface PublicChatProps {
   setNewMessage: (value: string) => void;
   userId: string;
   avatar: string;
+  socket: any;
 }
 
 const PublicChat: FC<PublicChatProps> = ({
@@ -21,11 +22,18 @@ const PublicChat: FC<PublicChatProps> = ({
   newMessage,
   setNewMessage,
   userId,
-  // avatar,
+  socket,
 }) => {
   useEffect(() => {
     console.log(messages);
   }, [messages]);
+
+  useEffect(() => {
+    if (socket) {
+      socket.emit("join_public_room", { userId });
+    }
+  }, [socket]);
+
   return (
     <>
       <div className="exit-public-chat" onClick={() => setIsPublicChat(false)}>
@@ -34,7 +42,7 @@ const PublicChat: FC<PublicChatProps> = ({
       </div>
       <div className="selected-chat-container">
         <div className="heading-text">Public Chat</div>
-        <div className="message-list">
+        <div className="public-message-list">
           {messages?.map((message: any, index: number) => (
             <div
               key={index}

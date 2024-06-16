@@ -12,6 +12,8 @@ import { createChat, getChats, sendMessage } from "../../services/chat";
 import { authStore } from "../../store/authStore";
 import { useNavigate } from "react-router-dom";
 import Signaling from "../../utils/signaling";
+import Peer from "simple-peer";
+import io from "socket.io-client";
 
 import {
   Chat as ChatProp,
@@ -23,14 +25,13 @@ import PublicChat from "../../components/PublicChat";
 import { FaArrowRightToBracket } from "react-icons/fa6";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { GrGallery } from "react-icons/gr";
-
+import { useParams } from "react-router";
+import { useSocket } from "../../hooks/sockets";
 const Chat: FC = () => {
   const [selectedChat, setSelectedChat] = useState<any>();
   const [newMessage, setNewMessage] = useState<string>("");
   const [image, setImage] = useState<string>("");
-  const [connectedUsers, setConnectedUsers] = useState<
-    { username: string; avatar: string; userId: string }[]
-  >([]);
+  const [connectedUsers, setConnectedUsers] = useState<any>([]);
   const [publicMessages, setPublicMessages] = useState<any[]>([]);
   const [publicInput, setPublicInput] = useState<string>("");
   const [isPublicChat, setIsPublicChat] = useState<boolean>(false);
@@ -39,19 +40,23 @@ const Chat: FC = () => {
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [isImageMessage, setIsImageMessage] = useState<boolean>(false);
   const [isCallOpen, setIsCallOpen] = useState<boolean>(false);
-
-  // webSockets
-  const [ws, setWs] = useState<any>();
-
-  // WebRTC video calling
-  const selfViewRef = useRef(null) as any;
-  const remoteViewRef = useRef(null) as any;
-  const rtcConnectionRef = useRef(null) as any;
-  const signalingRef = useRef(null) as any;
+  const [me, setMe] = useState<any>();
+  const [stream, setStream] = useState<any>();
+  const [receivingCall, setReceivingCall] = useState<boolean>(false);
+  const [caller, setCaller] = useState<any>();
+  const [callerSignal, setCallerSignal] = useState<any>();
+  const [callAccepted, setCallAccepted] = useState<boolean>(false);
+  const [idToCall, setIdToCall] = useState<string>("");
+  const [callEnded, setCallEnded] = useState<boolean>(false);
+  const [name, setName] = useState<string>("");
+  const myVideo = useRef(null) as any;
+  const userVideo = useRef(null) as any;
+  const connectionRef = useRef(null) as any;
+  const { id } = useParams();
+  const [socket, setSocket] = useState<any>();
 
   const { logOut, userId, username, avatar } = authStore((state) => state);
 
-  // const { data: users } = useQuery("users", getUsers);
   const { data: chats, refetch } = useQuery<ChatProp[]>("chats", getChats);
 
   const { mutate: createChatMutate } = useMutation(
@@ -67,16 +72,86 @@ const Chat: FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Setup local cam and signaling server
-    // setupConnection();
-
+    const s = io(`${API_URL}`);
+    setSocket(s);
     return () => {
-      // Cleanup
-      if (rtcConnectionRef.current) {
-        rtcConnectionRef.current.close();
-      }
+      s.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    if (socket) {
+      socket.on("connect", () => {
+        console.log("connected to WebSocket server");
+      });
+    }
+  }, [socket]);
+
+  useEffect(() => {
+    socket?.emit("join_room", id);
+  }, [socket]);
+
+  useEffect(() => {
+    socket?.emit("login", { username, avatar, userId });
+    if (socket) {
+      socket?.on("connected_users", (users: any) => {
+        setConnectedUsers(users);
+        console.log("connected users", users);
+      });
+    }
+
+    // return () => {
+    //   socket.off("connected_users");
+    // };
+  }, [username, userId, socket, avatar]);
+
+  useEffect(() => {
+    if (socket) {
+      socket?.on("receive_message", (message: any) => {
+        delete message.userChat;
+        console.log("receive_message", message);
+        console.log("setSelectedChat", selectedChat);
+        setSelectedChat((prevChat: any) => {
+          const chat = { ...prevChat };
+          chat.messages = [...chat.messages, message];
+          return chat;
+        });
+      });
+    }
+  }, [socket]);
+
+  useEffect(() => {
+    try {
+      if (socket) {
+        socket?.on("receive_public_chat", (message: any) => {
+          console.log("receive_public_chat", message);
+          setPublicMessages((prevMessages) => [...prevMessages, message]);
+        });
+
+        // return () => {
+        //   socket.off("public_chat");
+        // };
+      }
+    } catch (error) {
+      console.log("error", error);
+    }
+  }, [socket]);
+
+  // useEffect(() => {
+  //   navigator.mediaDevices
+  //     .getUserMedia({ video: true, audio: true })
+  //     .then((stream) => {
+  //       setStream(stream);
+  //       myVideo.current.srcObject = stream;
+  //     });
+
+  //   socket.on("callUser", (data: any) => {
+  //     setReceivingCall(true);
+  //     setCaller(data.from);
+  //     setName(data.name);
+  //     setCallerSignal(data.signal);
+  //   });
+  // }, []);
 
   useEffect(() => {
     if (chats && chats.length > 0) {
@@ -85,181 +160,12 @@ const Chat: FC = () => {
   }, [chats]);
 
   useEffect(() => {
-    const ws = new WebSocket(`${API_URL.replace(/^http/, "ws")}`);
-    setWs(ws);
-  }, []);
-
-  useEffect(() => {
-    if (!ws) return;
-
-    ws.onopen = () => {
-      console.log("WebSocket connected");
-      ws.send(JSON.stringify({ type: "login", username, avatar, userId }));
-    };
-    if (ws) {
-      ws.onmessage = (event: any) => {
-        const messageData = JSON.parse(event.data);
-        if (messageData.type == "receive_message") {
-          setSelectedChat((prevChat: any) => {
-            const chat = { ...prevChat };
-            chat.messages = [...chat.messages, messageData.message];
-            return chat;
-          });
-          console.log("receive message", messageData);
-        } else if (messageData.type === "connected_users") {
-          setConnectedUsers(messageData.users);
-          console.log("connected users", messageData.users);
-        } else if (messageData.type === "public_chat") {
-          setPublicMessages((prevMessages) => [
-            ...prevMessages,
-            messageData.message,
-          ]);
-          console.log("public chat", messageData);
-        }
-      };
-    }
-    return () => {
-      ws.onclose = () => {
-        console.log("WebSocket disconnected");
-      };
-    };
-  }, [ws, username, avatar]);
-
-  useEffect(() => {
-    console.log("connected Users", connectedUsers);
-  }, [connectedUsers]);
-
-  useEffect(() => {
     console.log("public messages", publicMessages);
   }, [publicMessages]);
 
-  // WebRTC video calling
-  function setupConnection() {
-    // Uncomment to use NodeJS sample
-    signalingRef.current = new Signaling("ws://localhost:8080");
-
-    // For own implementation use same API or comment out signaling methods and implement own API
-    signalingRef.current.onMessage(onSignalingEvent);
-
-    // Create new rtc connection
-    rtcConnectionRef.current = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19305" }],
-    });
-
-    // Listen to rtc events
-    rtcConnectionRef.current.onicecandidate = function (evt: any) {
-      if (evt.candidate !== undefined)
-        signalingRef.current.send(
-          JSON.stringify({ type: "candidate", candidate: evt.candidate })
-        );
-    };
-
-    rtcConnectionRef.current.oniceconnectionstatechange = function (evt: any) {
-      console.log("ICE connection state change:", evt);
-    };
-
-    rtcConnectionRef.current.onicegatheringstatechange = function (evt: any) {
-      console.log("ICE gathering state change:", evt);
-    };
-
-    rtcConnectionRef.current.onaddstream = function (evt: any) {
-      remoteViewRef.current.setAttribute("style", null);
-      // // Attach incoming stream to remote view
-      attachMediaStream(remoteViewRef.current, evt.stream);
-    };
-
-    navigator.mediaDevices
-      .getUserMedia({ video: true, audio: true })
-      .then(function (stream) {
-        console.log("Stream received:", stream);
-        // Attach local media stream to video element
-        attachMediaStream(selfViewRef.current, stream);
-        // Attach stream to the RTC connection
-        stream.getTracks().forEach((track) => {
-          rtcConnectionRef.current.addTrack(track, stream);
-        });
-      })
-      .catch(function (err: any) {
-        console.log(
-          "##ERROR: There was an error getting the requested media#",
-          err
-        );
-      });
-  }
-
-  async function onSignalingEvent(event: any) {
-    try {
-      // console.log("Signaling event:", event);
-      // Parse data
-      // event = JSON.parse(event);
-      switch (event.type) {
-        case "candidate":
-          rtcConnectionRef.current?.addIceCandidate(
-            new RTCIceCandidate(event.candidate)
-          );
-          break;
-        case "sdp":
-          // Gets description from caller and set it to RTC connection
-          rtcConnectionRef.current?.setRemoteDescription(
-            new RTCSessionDescription(event.sdp)
-          );
-
-          rtcConnectionRef.current?.createAnswer(function (desc: any) {
-            rtcConnectionRef.current?.setLocalDescription(desc);
-            signalingRef.current.send(
-              JSON.stringify({
-                type: "sdp",
-                sdp: desc,
-              })
-            );
-          });
-          break;
-        case "sdpRemote":
-          // Get the description from the caller and set it to the RTC connection
-          rtcConnectionRef.current.setRemoteDescription(
-            new RTCSessionDescription(event.sdp)
-          );
-          break;
-        case "connected_users":
-          setConnectedUsers(event.users);
-          console.log("Connected users:", event.users);
-          break;
-
-        default:
-          console.log("Unknown signaling event type:", event.type);
-          break;
-      }
-    } catch (error) {
-      console.error("Failed to parse signaling event:", error);
-    }
-  }
-
-  // Attaches the stream to target video element
-  function attachMediaStream(video: HTMLVideoElement, stream: any) {
-    const videoTracks = stream.getVideoTracks();
-    console.log(`Using video device: ${videoTracks[0].label}`);
-    video.srcObject = stream;
-  }
-
-  const handleVideoCall = async (user: any) => {
-    setupConnection();
-    setIsCallOpen(true);
-    try {
-      rtcConnectionRef.current.createOffer(function (desc: any) {
-        rtcConnectionRef.current.setLocalDescription(desc);
-        signalingRef.current.send(
-          JSON.stringify({
-            type: "sdp",
-            sdp: desc,
-            targetUserId: user.userId, // Send the target user's ID
-          })
-        );
-        console.log("user", user);
-      });
-    } catch (error) {
-      console.error("##ERROR:There was an error with the description#", error);
-    }
-  };
+  useEffect(() => {
+    console.log("connected users", connectedUsers);
+  }, [connectedUsers]);
 
   const createPrivateChat = (memberId: string) => {
     const members = [userId, memberId];
@@ -285,9 +191,10 @@ const Chat: FC = () => {
       message: publicInput,
       username: username,
       userId: userId,
-      // avatar: avatar,
+      avatar: avatar,
     };
-    ws.send(JSON.stringify({ type: "public_chat", message: messagesData }));
+    setPublicMessages((prevMessages) => [...prevMessages, messagesData]);
+    socket?.emit("public_chat", messagesData);
     setPublicInput("");
   };
 
@@ -315,7 +222,6 @@ const Chat: FC = () => {
     const selectedChat: any = chats?.find((chat) => chat.id === chatId);
     setSelectedChat(selectedChat);
     navigate(`/chat/${chatId}`);
-    ws.send(JSON.stringify({ type: "join_room", room: chatId }));
   };
 
   const handleNewMessage = () => {
@@ -333,10 +239,9 @@ const Chat: FC = () => {
         onSuccess: (data) => {
           const messageData = {
             ...data.messages[data.messages.length - 1],
+            userChat: id,
           };
-          ws.send(
-            JSON.stringify({ type: "send_message", message: messageData })
-          );
+          socket?.emit("send_message", messageData);
           refetch();
           setNewMessage("");
           setImage("");
@@ -374,6 +279,7 @@ const Chat: FC = () => {
       <div className="chat-container">
         {isPublicChat ? (
           <PublicChat
+            socket={socket}
             setIsPublicChat={() => setIsPublicChat(!isPublicChat)}
             messages={publicMessages}
             handleNewMessage={handlePublicMessage}
@@ -437,7 +343,25 @@ const Chat: FC = () => {
             </div>
 
             <div className="selected-chat-container">
-              <div className="heading-text">{handleChatName(selectedChat)}</div>
+              <div className="chat-bar">
+                <div className="heading-text" style={{ marginTop: "6px" }}>
+                  {handleChatName(selectedChat)}
+                </div>
+
+                <div>
+                  <Button
+                    buttonText="Video"
+                    icon={<IoVideocam />}
+                    onClick={() => {
+                      const id = selectedChat.members.find(
+                        (member: User) => member.id !== userId
+                      ).id;
+                      console.log("call user", id);
+                      // callUser(id);
+                    }}
+                  ></Button>
+                </div>
+              </div>
               {!selectedChat && (
                 <div
                   style={{
@@ -599,18 +523,6 @@ const Chat: FC = () => {
                       <div>Send Message</div>
                       <IoIosSend className="boxes-content" />
                     </div>
-                    <div
-                      className="connected-user-options-content"
-                      style={{ borderTop: "1px solid rgb(0,0,0,0.1)" }}
-                    >
-                      <div
-                        onClick={() => handleVideoCall(user)}
-                        style={{ color: "red" }}
-                      >
-                        Make Video Call
-                      </div>
-                      <IoVideocam className="boxes-content" />
-                    </div>
                   </div>
                 )}
               </div>
@@ -627,33 +539,44 @@ const Chat: FC = () => {
           </div>
         </div>
       </div>
+
       <>
-        {isCallOpen && (
-          <div className="video-call-container">
+        {/* <div>
+          {receivingCall && !callAccepted && (
+            <div>
+              <h1>{username} is calling...</h1>
+              <button onClick={answerCall}>Answer</button>
+            </div>
+          )}
+          <div
+          // className="video-call-container"
+          >
             <video
-              ref={selfViewRef}
+              ref={myVideo}
               autoPlay
-              width="320"
-              height="240"
-              style={{ backgroundColor: "#000000", borderRadius: "10px" }}
-            ></video>
-            <video
-              ref={remoteViewRef}
-              autoPlay
-              width="320"
-              height="240"
-              style={{ backgroundColor: "#000000", borderRadius: "10px" }}
-            ></video>
-            <button
-              onClick={() => {
-                rtcConnectionRef.current.close();
-                setIsCallOpen(false);
+              muted
+              style={{
+                width: "320px",
+                height: "240px",
+                backgroundColor: "#000000",
+                borderRadius: "10px",
               }}
-            >
-              End Call
-            </button>
+            ></video>
+            <video
+              ref={userVideo}
+              autoPlay
+              style={{
+                width: "320px",
+                height: "240px",
+                backgroundColor: "#000000",
+                borderRadius: "10px",
+              }}
+            ></video>
+            {callAccepted && !callEnded && (
+              <button onClick={leaveCall}>End Call</button>
+            )}
           </div>
-        )}
+        </div> */}
       </>
     </>
   );

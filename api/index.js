@@ -10,6 +10,7 @@ const cors = require("cors");
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/user");
 const chatRoutes = require("./routes/chat");
+const { sign } = require("crypto");
 
 // const ws = require("ws");
 
@@ -43,107 +44,7 @@ const io = require("socket.io")(http, {
   },
 });
 
-// const wsServer = new ws.Server({ server: http });
 const connectedUsers = new Map();
-
-// wsServer.on("connection", (ws) => {
-//   console.log(`socket connected`, ws.id);
-
-//   ws.on("message", (message) => {
-//     console.log("MESSAGEEE", message);
-//     const data = JSON.parse(message);
-
-//     if (data.type === "login") {
-//       ws.username = data.username;
-//       ws.avatar = data.avatar;
-//       ws.userId = data.userId;
-
-//       connectedUsers.set(ws.username, {
-//         ws,
-//         username: data.username,
-//         avatar: data.avatar,
-//         userId: data.userId,
-//       });
-
-//       console.log(`User ${ws.username} logged in with userId: ${ws.userId}`);
-//       broadcastConnectedUsers();
-//     }
-
-//     if (data.type === "join_room") {
-//       ws.room = data.room; //
-//       console.log(`user joined room: ${data.room}`);
-//     }
-
-//     if (data.type === "send_message") {
-//       wsServer.clients.forEach((client) => {
-//         client.send(
-//           JSON.stringify({
-//             type: "receive_message",
-//             message: data.message,
-//           })
-//         );
-//       });
-//       console.log("receive_message", data);
-//     }
-
-//     if (data.type === "public_chat") {
-//       wsServer.clients.forEach((client) => {
-//         client.send(
-//           JSON.stringify({
-//             type: "public_chat",
-//             message: data.message,
-//             username: data.username,
-//             userId: data.userId,
-//             avatar: data.avatar,
-//           })
-//         );
-//       });
-
-//       console.log("public_chat", data);
-//     }
-
-//     if (data.type === "dispatchEvent") {
-//       wsServer.clients.forEach((client) => {
-//         client.send(
-//           JSON.stringify({
-//             type: "onEvent",
-//             data: data.data,
-//           })
-//         );
-//       });
-//       console.log("dispatchEvent", data);
-//     }
-
-//     if (data.type === "callUser") {
-//       forwardToUser(data.targetUserId, {
-//         type: "callAccepted",
-//         from: data.userId,
-//         username: data.username,
-//         signal: data.signal,
-
-//         // avatar: data.avatar,
-//       });
-//       console.log("callUser", data);
-//     }
-
-//     if (data.type === "answerCall") {
-//       forwardToUser(data.targetUserId, {
-//         type: "answerCall",
-//         signal: data.signal,
-//         to: data.userId,
-//       });
-//       console.log("answerCall", data);
-//     }
-//   });
-
-//   ws.on("close", () => {
-//     console.log("user disconnected");
-//   });
-
-//   ws.on("error", (err) => {
-//     console.log(`connect_error due to ${err.message}`);
-//   });
-// });
 
 io.on("connection", (socket) => {
   // console.log("a user connected", socket.id);
@@ -182,15 +83,18 @@ io.on("connection", (socket) => {
   });
 
   socket.on("callUser", (data) => {
+    console.log(`User ${data.username} is calling ${data.userToCall}`);
+
     socket.to(data.userToCall).emit("callUser", {
-      signal: data.signalData,
+      signal: data.signal,
       from: data.from,
-      name: data.name,
+      username: data.username,
     });
   });
 
   socket.on("answerCall", (data) => {
-    io.to(data.to).emit("callAccepted", data.signal);
+    socket.to(data.to).emit("callAccepted", data.signal);
+    console.log(`User answered call`, data);
   });
 
   socket.on("disconnect", () => {
@@ -199,7 +103,7 @@ io.on("connection", (socket) => {
     connectedUsers.delete(userId);
     // console.log(`User ${userId} disconnected`);
 
-    io.emit("connected_users", Array.from(connectedUsers.values()));
+    socket.emit("connected_users", Array.from(connectedUsers.values()));
   });
 });
 

@@ -5,13 +5,11 @@ import Button from "../../components/ui/Button";
 import { AiOutlineLogout } from "react-icons/ai";
 import { RiRadioButtonLine } from "react-icons/ri";
 import { useMutation, useQuery } from "react-query";
-// import { getUsers } from "../../services/user";
 import { User } from "../../validations-schemas/interfaces/user";
 import { IoIosSend } from "react-icons/io";
 import { createChat, getChats, sendMessage } from "../../services/chat";
 import { authStore } from "../../store/authStore";
 import { useNavigate } from "react-router-dom";
-import Signaling from "../../utils/signaling";
 import Peer from "simple-peer";
 import io from "socket.io-client";
 
@@ -26,7 +24,7 @@ import { FaArrowRightToBracket } from "react-icons/fa6";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { GrGallery } from "react-icons/gr";
 import { useParams } from "react-router";
-import { useSocket } from "../../hooks/sockets";
+import { BsThreeDots } from "react-icons/bs";
 const Chat: FC = () => {
   const [selectedChat, setSelectedChat] = useState<any>();
   const [newMessage, setNewMessage] = useState<string>("");
@@ -40,20 +38,20 @@ const Chat: FC = () => {
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [isImageMessage, setIsImageMessage] = useState<boolean>(false);
   const [isCallOpen, setIsCallOpen] = useState<boolean>(false);
-  const [me, setMe] = useState<any>();
-  const [stream, setStream] = useState<any>();
+  const [stream, setStream] = useState<any | null>(null);
   const [receivingCall, setReceivingCall] = useState<boolean>(false);
   const [caller, setCaller] = useState<any>();
   const [callerSignal, setCallerSignal] = useState<any>();
   const [callAccepted, setCallAccepted] = useState<boolean>(false);
-  const [idToCall, setIdToCall] = useState<string>("");
   const [callEnded, setCallEnded] = useState<boolean>(false);
   const [name, setName] = useState<string>("");
-  const myVideo = useRef(null) as any;
-  const userVideo = useRef(null) as any;
-  const connectionRef = useRef(null) as any;
-  const { id } = useParams();
+  const [callData, setCallData] = useState<any[]>([]);
+
+  const myVideo = useRef<HTMLVideoElement>(null);
+  const userVideo = useRef<any>(null);
+  const connectionRef = useRef<any>(null);
   const [socket, setSocket] = useState<any>();
+  const { id } = useParams();
 
   const { logOut, userId, username, avatar } = authStore((state) => state);
 
@@ -64,16 +62,17 @@ const Chat: FC = () => {
       createChat({ type, members })
   );
 
-  const { mutate: sendMessageMutate } = useMutation(
-    ({ id, message }: { id: string; message: NewMessage }) =>
+  const { mutate: sendMessageMutate, isLoading: isSendMessageloading } =
+    useMutation(({ id, message }: { id: string; message: NewMessage }) =>
       sendMessage(id, message)
-  );
+    );
 
   const navigate = useNavigate();
 
   useEffect(() => {
     const s = io(`${API_URL}`);
     setSocket(s);
+
     return () => {
       s.disconnect();
     };
@@ -82,7 +81,10 @@ const Chat: FC = () => {
   useEffect(() => {
     if (socket) {
       socket.on("connect", () => {
-        console.log("connected to WebSocket server");
+        console.log("connected to Socket server");
+      });
+      socket?.on("callUser", (data: any) => {
+        console.log("callUser", data);
       });
     }
   }, [socket]);
@@ -99,10 +101,6 @@ const Chat: FC = () => {
         console.log("connected users", users);
       });
     }
-
-    // return () => {
-    //   socket.off("connected_users");
-    // };
   }, [username, userId, socket, avatar]);
 
   useEffect(() => {
@@ -127,31 +125,57 @@ const Chat: FC = () => {
           console.log("receive_public_chat", message);
           setPublicMessages((prevMessages) => [...prevMessages, message]);
         });
-
-        // return () => {
-        //   socket.off("public_chat");
-        // };
       }
     } catch (error) {
       console.log("error", error);
     }
   }, [socket]);
 
-  // useEffect(() => {
-  //   navigator.mediaDevices
-  //     .getUserMedia({ video: true, audio: true })
-  //     .then((stream) => {
-  //       setStream(stream);
-  //       myVideo.current.srcObject = stream;
-  //     });
+  useEffect(() => {
+    navigator.mediaDevices
+      .getUserMedia({ video: true, audio: true })
+      .then((stream: MediaStream) => {
+        setStream(stream);
+        if (myVideo.current) {
+          myVideo.current.srcObject = stream;
+        }
+        console.log("stream", stream);
+      });
+    // if (socket) {
+    //   socket?.on("callUser", (data: any) => {
+    //     console.log("callUser", data);
+    //     setReceivingCall(true);
+    //     setCaller(data.from);
+    //     setName(data.username);
+    //     setCallerSignal(data.signal);
+    //   });
+    // }
+  }, []);
 
-  //   socket.on("callUser", (data: any) => {
-  //     setReceivingCall(true);
-  //     setCaller(data.from);
-  //     setName(data.name);
-  //     setCallerSignal(data.signal);
-  //   });
-  // }, []);
+  useEffect(() => {
+    try {
+      if (socket) {
+        socket?.on("callUser", (data: any) => {
+          console.log("receive_callUser", data);
+          // delete data.userToCall;
+          setReceivingCall(true);
+          // setCallData((prevData) => [
+          //   ...prevData,
+          //   { from: data.from, signal: data.signal, username: data.usernsme },
+          // ]);
+          setCallerSignal(data.signal);
+          setCaller(data.from);
+          setName(data.username);
+        });
+      }
+    } catch (error: any) {
+      console.log("error", error);
+    }
+  }, [socket]);
+
+  // useEffect(() => {
+  //   console.log("caller", caller);
+  // }, [caller]);
 
   useEffect(() => {
     if (chats && chats.length > 0) {
@@ -159,13 +183,72 @@ const Chat: FC = () => {
     }
   }, [chats]);
 
-  useEffect(() => {
-    console.log("public messages", publicMessages);
-  }, [publicMessages]);
+  // useEffect(() => {
+  //   console.log("public messages", publicMessages);
+  // }, [publicMessages]);
 
-  useEffect(() => {
-    console.log("connected users", connectedUsers);
-  }, [connectedUsers]);
+  // useEffect(() => {
+  //   console.log("connected users", connectedUsers);
+  // }, [connectedUsers]);
+
+  const callUser = (idUserToCall: any) => {
+    const peer = new Peer({
+      initiator: true,
+      trickle: false,
+      stream: stream,
+    });
+    peer.on("signal", (data: any) => {
+      console.log("Sending signal to user:", idUserToCall);
+      const callData = {
+        userToCall: idUserToCall,
+        signal: data,
+        from: userId,
+        username: username,
+      };
+      socket.emit("callUser", callData);
+      console.log("callData", callData);
+    });
+    peer.on("stream", (stream: any) => {
+      if (userVideo.current) {
+        console.log("Received remote stream", stream);
+        userVideo.current.srcObject = stream;
+      }
+    });
+    socket.on("callAccepted", (signal: any) => {
+      console.log("Call accepted by callee", signal);
+      setCallAccepted(true);
+      peer.signal(signal);
+    });
+
+    connectionRef.current = peer;
+  };
+
+  const answerCall = () => {
+    setCallAccepted(true);
+    const peer = new Peer({
+      initiator: false,
+      trickle: false,
+      stream: stream,
+    });
+    peer.on("signal", (data: any) => {
+      socket?.emit("answerCall", { signal: data, to: caller });
+      console.log("answerCall", data);
+    });
+    peer.on("stream", (stream: any) => {
+      if (userVideo.current) {
+        userVideo.current.srcObject = stream;
+      }
+      console.log("Answered call received stream", stream);
+    });
+
+    peer.signal(callerSignal);
+    connectionRef.current = peer;
+  };
+
+  const leaveCall = () => {
+    setCallEnded(true);
+    connectionRef.current.destroy();
+  };
 
   const createPrivateChat = (memberId: string) => {
     const members = [userId, memberId];
@@ -225,6 +308,7 @@ const Chat: FC = () => {
   };
 
   const handleNewMessage = () => {
+    isSendMessageloading;
     if (newMessage === "" && !image) return;
     sendMessageMutate(
       {
@@ -357,7 +441,7 @@ const Chat: FC = () => {
                         (member: User) => member.id !== userId
                       ).id;
                       console.log("call user", id);
-                      // callUser(id);
+                      callUser(id);
                     }}
                   ></Button>
                 </div>
@@ -466,8 +550,8 @@ const Chat: FC = () => {
                     onClick={handleGallery}
                   ></Button>
                   <Button
-                    icon={<IoSend />}
-                    buttonText="Send"
+                    icon={isSendMessageloading ? <BsThreeDots /> : <IoSend />}
+                    buttonText={isSendMessageloading ? "Sending..." : "Send"}
                     onClick={handleNewMessage}
                   ></Button>
                 </div>
@@ -541,42 +625,54 @@ const Chat: FC = () => {
       </div>
 
       <>
-        {/* <div>
-          {receivingCall && !callAccepted && (
-            <div>
-              <h1>{username} is calling...</h1>
-              <button onClick={answerCall}>Answer</button>
-            </div>
-          )}
+        <div>
           <div
           // className="video-call-container"
           >
-            <video
-              ref={myVideo}
-              autoPlay
-              muted
-              style={{
-                width: "320px",
-                height: "240px",
-                backgroundColor: "#000000",
-                borderRadius: "10px",
-              }}
-            ></video>
-            <video
-              ref={userVideo}
-              autoPlay
-              style={{
-                width: "320px",
-                height: "240px",
-                backgroundColor: "#000000",
-                borderRadius: "10px",
-              }}
-            ></video>
-            {callAccepted && !callEnded && (
+            <div>
+              {stream && (
+                <video
+                  playsInline
+                  muted
+                  ref={myVideo}
+                  autoPlay
+                  style={{
+                    width: "320px",
+                    height: "240px",
+                    // backgroundColor: "#000000",
+                    borderRadius: "10px",
+                  }}
+                ></video>
+              )}
+            </div>
+            <div>
+              {callAccepted && !callEnded ? (
+                <video
+                  playsInline
+                  ref={userVideo}
+                  autoPlay
+                  style={{
+                    width: "320px",
+                    height: "240px",
+                    // backgroundColor: "#000000",
+                    borderRadius: "10px",
+                  }}
+                />
+              ) : null}
+            </div>
+            {callAccepted && !callEnded ? (
               <button onClick={leaveCall}>End Call</button>
-            )}
+            ) : null}
           </div>
-        </div> */}
+          <div>
+            {receivingCall && !callAccepted ? (
+              <div className="caller">
+                <h1>{name} is calling...</h1>
+                <button onClick={answerCall}>Answer</button>
+              </div>
+            ) : null}
+          </div>
+        </div>
       </>
     </>
   );

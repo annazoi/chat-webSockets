@@ -5,8 +5,11 @@ import { QueryClient, QueryClientProvider } from "react-query";
 import { defineCustomElements } from "@ionic/pwa-elements/loader";
 import "./index.css";
 
+(window as any).global = window;
+
 const queryClient = new QueryClient();
 defineCustomElements(window);
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>

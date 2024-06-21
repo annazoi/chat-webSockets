@@ -21,8 +21,10 @@ interface AuthProps {
 const Auth: FC<AuthProps> = ({ type, icon, buttonText }) => {
   const { logIn } = authStore((state) => state);
   const navigate = useNavigate();
-  const { mutate: signupMutate } = useMutation(signup);
-  const { mutate: signinMutate } = useMutation(signin);
+  const { mutate: signupMutate, isLoading: isSignupLoading } =
+    useMutation(signup);
+  const { mutate: signinMutate, isLoading: isSigninLoading } =
+    useMutation(signin);
   const {
     register,
     handleSubmit,
@@ -43,6 +45,7 @@ const Auth: FC<AuthProps> = ({ type, icon, buttonText }) => {
   const onSubmit = async (data: any) => {
     try {
       if (type === "Sign Up") {
+        isSignupLoading;
         signupMutate(data, {
           onSuccess: (data: any) => {
             if (data.avatar === undefined || data.avatar === " ") {
@@ -58,6 +61,7 @@ const Auth: FC<AuthProps> = ({ type, icon, buttonText }) => {
           },
         });
       } else {
+        isSigninLoading;
         signinMutate(data, {
           onSuccess: (data: any) => {
             logIn({
@@ -94,7 +98,15 @@ const Auth: FC<AuthProps> = ({ type, icon, buttonText }) => {
             <ImagePicker onChange={handleImage}></ImagePicker>
           )}
           <Button
-            text={type}
+            text={
+              type === "Sign Up"
+                ? isSignupLoading
+                  ? "Loading..."
+                  : "Sign Up"
+                : isSigninLoading
+                ? "Loading..."
+                : "Sign In"
+            }
             type="submit"
             style={{
               backgroundColor: "black",

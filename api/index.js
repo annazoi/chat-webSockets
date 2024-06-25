@@ -73,7 +73,7 @@ io.on("connection", (socket) => {
 
     socket.on("send_message", (data) => {
       console.log("receive_message", data);
-      socket.to(data.userChat).emit("receive_message", data);
+      io.to(data.userChat).emit("receive_message", data);
     });
   });
 
@@ -84,16 +84,18 @@ io.on("connection", (socket) => {
 
   socket.on("callUser", (data) => {
     console.log(`User ${data.username} is calling ${data.userToCall}`);
-
-    socket.to(data.userToCall).emit("callUser", {
-      signal: data.signal,
+    // console.log(data);
+    io.to(data.userToCall).emit("r_callUser", {
+      userToCall: data.userToCall,
+      signal: data.signalData,
       from: data.from,
       username: data.username,
+      roomId: data.roomId,
     });
   });
 
   socket.on("answerCall", (data) => {
-    socket.to(data.to).emit("callAccepted", data.signal);
+    io.to(data.to).emit("callAccepted", data.signal);
     console.log(`User answered call`, data);
   });
 

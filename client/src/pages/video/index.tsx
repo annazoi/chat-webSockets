@@ -1,204 +1,175 @@
-import { useRef, useEffect, useState, FC } from "react";
+import { useEffect, useRef, useState } from "react";
+import io from "socket.io-client";
 import { API_URL } from "../../constants/api";
-import Signaling from "../../utils/signaling";
-import { authStore } from "../../store/authStore";
+import Peer from "simple-peer";
+import { FaPhoneAlt } from "react-icons/fa";
 
-const Video: FC = () => {
-  const selfViewRef = useRef(null) as any;
-  const remoteViewRef = useRef(null) as any;
-  const rtcConnectionRef = useRef(null) as any;
-  const signalingRef = useRef(null) as any;
-  const [ws, setWs] = useState<any>();
-  const [connectedUsers, setConnectedUsers] = useState<
-    { username: string; avatar: string; userId: string }[]
-  >([]);
-
-  const { userId, username, avatar } = authStore((state) => state);
+const VideoCall = () => {
+  const [me, setMe] = useState<string>("");
+  const [stream, setStream] = useState<any>();
+  const [receivingCall, setReceivingCall] = useState<boolean>(false);
+  const [caller, setCaller] = useState<string>("");
+  const [callerSignal, setCallerSignal] = useState<any>();
+  const [callAccepted, setCallAccepted] = useState<boolean>(false);
+  const [idToCall, setIdToCall] = useState<string>("");
+  const [callEnded, setCallEnded] = useState<boolean>(false);
+  const [name, setName] = useState<string>("");
+  const [socket, setSocket] = useState<any>();
+  const myVideo = useRef<any>(null);
+  const userVideo = useRef<any>(null);
+  const connectionRef = useRef<any>(null);
 
   useEffect(() => {
-    const ws = new WebSocket(`${API_URL.replace(/^http/, "ws")}`);
-    setWs(ws);
+    const s = io(`${API_URL}`);
+    setSocket(s);
+
+    return () => {
+      s.disconnect();
+    };
   }, []);
 
   useEffect(() => {
-    if (!ws) return;
-
-    ws.onopen = () => {
-      console.log("WebSocket connected");
-      ws.send(JSON.stringify({ type: "login", username, avatar, userId }));
-    };
-
-    if (ws) {
-      ws.onmessage = (event: any) => {
-        const messageData = JSON.parse(event.data);
-        if (messageData.type === "connected_users") {
-          setConnectedUsers(messageData.users);
-          console.log("connected users", messageData.users);
-        }
-      };
-    }
-    return () => {
-      ws.onclose = () => {
-        console.log("WebSocket disconnected");
-      };
-    };
-  }, [ws, username, avatar]);
-
-  useEffect(() => {
-    // Setup local cam and signaling server
-    ws.onopen = () => {
-      console.log("Connected to the signaling server");
-      setupConnection();
-    };
-
-    return () => {
-      // Cleanup
-      if (rtcConnectionRef.current) {
-        rtcConnectionRef.current.close();
-      }
-    };
-  }, [ws]);
-
-  function setupConnection() {
-    // Uncomment to use NodeJS sample
-    signalingRef.current = new Signaling("ws://localhost:8080");
-
-    // For own implementation use same API or comment out signaling methods and implement own API
-    signalingRef.current.onMessage(onSignalingEvent);
-
-    // Create new rtc connection
-    rtcConnectionRef.current = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19305" }],
-    });
-
-    // Listen to rtc events
-    rtcConnectionRef.current.onicecandidate = function (evt: any) {
-      if (evt.candidate !== undefined)
-        signalingRef.current.send(
-          JSON.stringify({ type: "candidate", candidate: evt.candidate })
-        );
-    };
-
-    rtcConnectionRef.current.ontrack = function (evt: any) {
-      console.log("Track event:", evt);
-      if (remoteViewRef.current && evt.streams.length > 0) {
-        attachMediaStream(remoteViewRef.current, evt.streams[0]);
-      }
-    };
-
     navigator.mediaDevices
       .getUserMedia({ video: true, audio: true })
-      .then(function (stream) {
-        console.log("Stream received:", stream);
-        // Attach local media stream to video element
-        attachMediaStream(selfViewRef.current, stream);
-        // Attach stream to the RTC connection
-        rtcConnectionRef.current.addStream(stream);
-      })
-      .catch(function (err: any) {
-        console.log(
-          "##ERROR: There was an error getting the requested media#",
-          err
-        );
+      .then((stream) => {
+        setStream(stream);
+        if (myVideo.current) {
+          myVideo.current.srcObject = stream;
+        }
+        console.log("stream", stream);
       });
-  }
+    socket?.on("me", (id: string) => {
+      setMe(id);
+    });
+    socket?.on("callUser2", (data: any) => {
+      setReceivingCall(true);
+      setCaller(data.from);
+      setName(data.name);
+      setCallerSignal(data.signal);
+      console.log("callUser2", data);
+    });
+  }, [socket]);
 
-  async function onSignalingEvent(event: any) {
-    try {
-      // console.log("Signaling event:", event);
-      // Parse data
-      // event = JSON.parse(event);
-      switch (event.type) {
-        case "offer":
-          await rtcConnectionRef.current.setRemoteDescription(event.offer);
-          const answer = await rtcConnectionRef.current.createAnswer();
-          await rtcConnectionRef.current.setLocalDescription(answer);
-          signalingRef.current.send(
-            JSON.stringify({
-              type: "answer",
-              answer,
-              targetUserId: event.targetUserId,
-            })
-          );
-          break;
+  const callUser = (id: string) => {
+    console.log("callUser", id);
+    const peer = new Peer({
+      initiator: true,
+      trickle: false,
+      stream: stream,
+    });
+    peer?.on("signal", (data) => {
+      socket.emit("callUser2", {
+        userToCall: id,
+        signalData: data,
+        from: me,
+        name: name,
+      });
+    });
+    peer?.on("stream", (stream) => {
+      userVideo.current.srcObject = stream;
+    });
+    socket.on("callAccepted2", (signal: any) => {
+      setCallAccepted(true);
+      peer.signal(signal);
+    });
 
-        case "answer":
-          // Received answer from the second device
-          rtcConnectionRef.current.setRemoteDescription(event.answer);
+    connectionRef.current = peer;
+  };
 
-          break;
+  const answerCall = () => {
+    setCallAccepted(true);
+    const peer = new Peer({
+      initiator: false,
+      trickle: false,
+      stream: stream,
+    });
+    peer?.on("signal", (data) => {
+      socket.emit("answerCall2", { signal: data, to: caller });
+    });
+    peer?.on("stream", (stream) => {
+      userVideo.current.srcObject = stream;
+    });
 
-        case "candidate":
-          rtcConnectionRef.current?.addIceCandidate(
-            new RTCIceCandidate(event.candidate)
-          );
-          break;
-        case "sdp":
-          // Gets description from caller and set it to RTC connection
-          rtcConnectionRef.current?.setRemoteDescription(
-            new RTCSessionDescription(event.sdp)
-          );
+    peer.signal(callerSignal);
+    connectionRef.current = peer;
+  };
 
-          break;
-        case "sdpRemote":
-          // Get the description from the callee and set it to the RTC connection
-          rtcConnectionRef.current.setRemoteDescription(
-            new RTCSessionDescription(event.sdp)
-          );
-          break;
-        case "connected_users":
-          setConnectedUsers(event.users);
-          console.log("Connected users:", event.users);
-          break;
-        case "onEvent":
-          break;
-        default:
-          console.log("Unknown signaling event type:", event.type);
-          break;
-      }
-    } catch (error) {
-      console.error("Failed to parse signaling event:", error);
-    }
-  }
-
-  // Attaches the stream to target video element
-  function attachMediaStream(video: HTMLVideoElement, stream: any) {
-    // video.srcObject = stream;
-    // video.play();
-    const videoTracks = stream.getVideoTracks();
-    console.log(`Using video device: ${videoTracks[0].label}`);
-    video.srcObject = stream;
-  }
+  const leaveCall = () => {
+    setCallEnded(true);
+    connectionRef.current.destroy();
+  };
 
   return (
-    <div>
-      <h1>Video Call</h1>
+    <>
+      <h1 style={{ textAlign: "center", color: "#fff" }}>Video Call</h1>
       <div>
-        <video
-          ref={selfViewRef}
-          autoPlay
-          width="320"
-          height="240"
-          style={{ backgroundColor: "#000000" }}
-        ></video>
-        <video
-          ref={remoteViewRef}
-          autoPlay
-          width="320"
-          height="240"
-          style={{ display: "none", backgroundColor: "#000000" }}
-        ></video>
-        <button
-          onClick={() => {
-            rtcConnectionRef.current.close();
-            // setOpenVideoCall(false);
-          }}
-        >
-          End Call
-        </button>
+        <div>
+          <div>
+            {stream && (
+              <video
+                playsInline
+                muted
+                ref={myVideo}
+                autoPlay
+                style={{ width: "300px" }}
+              />
+            )}
+          </div>
+          <div>
+            {callAccepted && !callEnded ? (
+              <video
+                playsInline
+                ref={userVideo}
+                autoPlay
+                style={{ width: "300px" }}
+              />
+            ) : null}
+          </div>
+        </div>
+        <div>
+          <input
+            placeholder="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            style={{ marginBottom: "20px" }}
+          />
+          {/* <CopyToClipboard text={me} style={{ marginBottom: "2rem" }}>
+            <button
+              color="primary"
+              // startIcon={<AssignmentIcon fontSize="large" />}
+            >
+              Copy ID
+            </button>
+          </CopyToClipboard> */}
+
+          <input
+            placeholder="ID to call"
+            value={idToCall}
+            onChange={(e) => setIdToCall(e.target.value)}
+          />
+          <div>
+            {callAccepted && !callEnded ? (
+              <button onClick={leaveCall}>End Call</button>
+            ) : (
+              <button onClick={() => callUser(idToCall)}>
+                <FaPhoneAlt />
+              </button>
+            )}
+            {idToCall}
+          </div>
+          <div>{me}</div>
+        </div>
+        <div>
+          {receivingCall && !callAccepted ? (
+            <div className="caller">
+              <h1>{name} is calling...</h1>
+              <button onClick={answerCall}>Answer</button>
+            </div>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
-export default Video;
+export default VideoCall;

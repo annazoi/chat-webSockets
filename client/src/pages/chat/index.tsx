@@ -45,6 +45,8 @@ const Chat: FC = () => {
   const [callAccepted, setCallAccepted] = useState<boolean>(false);
   const [callEnded, setCallEnded] = useState<boolean>(false);
   const [name, setName] = useState<string>("");
+  const [isOpenImage, setIsOpenImage] = useState<boolean>(false);
+  const [selectedImage, setSelectedImage] = useState<any>();
   const [callData, setCallData] = useState<any[]>([]);
   const [idToCall, setIdToCall] = useState<string>("");
 
@@ -519,6 +521,10 @@ const Chat: FC = () => {
                       )}
                       {message.image && (
                         <img
+                          onClick={() => {
+                            setIsOpenImage(!isOpenImage);
+                            setSelectedImage(message.image);
+                          }}
                           src={message.image}
                           alt=""
                           style={{
@@ -528,10 +534,34 @@ const Chat: FC = () => {
                           }}
                         />
                       )}
+
+                      {isOpenImage && (
+                        <div className="image-message-preview">
+                          <div className="image-message-close ">
+                            <button
+                              onClick={() => setIsOpenImage(!isOpenImage)}
+                            >
+                              Close
+                            </button>
+                          </div>
+                          <div>
+                            <img
+                              onClick={() => setIsOpenImage(!isOpenImage)}
+                              src={selectedImage}
+                              alt=""
+                              style={{
+                                width: "600px",
+                                height: "600px",
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )
                 )}
               </div>
+
               {selectedChat && (
                 <div className="message-input-container">
                   {!isImageMessage ? (

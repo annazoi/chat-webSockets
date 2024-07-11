@@ -21,10 +21,13 @@ interface AuthProps {
 const Auth: FC<AuthProps> = ({ type, icon, buttonText }) => {
   const { logIn } = authStore((state) => state);
   const navigate = useNavigate();
+
   const { mutate: signupMutate, isLoading: isSignupLoading } =
     useMutation(signup);
+
   const { mutate: signinMutate, isLoading: isSigninLoading } =
     useMutation(signin);
+
   const {
     register,
     handleSubmit,

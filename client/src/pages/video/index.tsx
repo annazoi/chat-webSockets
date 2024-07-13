@@ -3,11 +3,8 @@ import io from "socket.io-client";
 import { API_URL } from "../../constants/api";
 import Peer from "simple-peer";
 import { FaPhoneAlt } from "react-icons/fa";
-import { authStore } from "../../store/authStore";
 
 const VideoCall = () => {
-  const { userId, username } = authStore((state) => state);
-
   const [me, setMe] = useState<string>("");
   const [stream, setStream] = useState<any>();
   const [receivingCall, setReceivingCall] = useState<boolean>(false);
@@ -26,12 +23,10 @@ const VideoCall = () => {
     const s = io(`${API_URL}`);
     setSocket(s);
 
-    s.emit("login", { userId, username });
-
     return () => {
       s.disconnect();
     };
-  }, [userId, username]);
+  }, []);
 
   useEffect(() => {
     navigator.mediaDevices
@@ -47,12 +42,12 @@ const VideoCall = () => {
       setMe(id);
     });
 
-    socket?.on("callUser2", (data: any) => {
+    socket?.on("callUser", (data: any) => {
       setReceivingCall(true);
       setCaller(data.from);
       setName(data.name);
       setCallerSignal(data.signal);
-      console.log("callUser2 useEffect", data);
+      console.log("callUser useEffect", data);
     });
   }, [socket]);
 
@@ -65,13 +60,7 @@ const VideoCall = () => {
     });
 
     peer?.on("signal", (data) => {
-      socket.emit("callUser2", {
-        userToCall: id,
-        signalData: data,
-        from: me,
-        name: name,
-      });
-      console.log("callUser2 function", {
+      socket.emit("callUser", {
         userToCall: id,
         signalData: data,
         from: me,
@@ -83,7 +72,7 @@ const VideoCall = () => {
       userVideo.current.srcObject = stream;
     });
 
-    socket.on("callAccepted2", (signal: any) => {
+    socket.on("callAccepted", (signal: any) => {
       setCallAccepted(true);
       peer.signal(signal);
     });
@@ -100,7 +89,7 @@ const VideoCall = () => {
     });
 
     peer?.on("signal", (data) => {
-      socket.emit("answerCall2", { signal: data, to: caller });
+      socket.emit("answerCall", { signal: data, to: caller });
     });
 
     peer?.on("stream", (stream) => {

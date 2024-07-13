@@ -128,30 +128,6 @@ io.on("connection", (socket) => {
 
     socket.emit("connected_users", Array.from(connectedUsers.values()));
   });
-
-  socket.on("disconnect2", () => {
-    socket.broadcast.emit("callEnded");
-  });
-
-  socket.on("callUser2", (data) => {
-    io.to(data.userToCall).emit("callUser2", {
-      signal: data.signalData,
-      from: data.from,
-      name: data.name,
-    });
-    console.log("from", data.from);
-    console.log("name", data.name);
-    console.log("to", data.userToCall);
-  });
-
-  socket.on("answerCall2", (data) => {
-    const userToCall = connectedUsers.get(data.to);
-    if (userToCall) {
-      io.to(userToCall.socketId).emit("callAccepted2", data.signal);
-      console.log(`User ${data.to} accepted the call from ${data.from}`);
-    }
-    // io.to(data.to).emit("callAccepted2", data.signal);
-  });
 });
 
 mongoose.connect(process.env.DB_CONNECTION).then(() => {

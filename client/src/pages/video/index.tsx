@@ -3,8 +3,11 @@ import io from "socket.io-client";
 import { API_URL } from "../../constants/api";
 import Peer from "simple-peer";
 import { FaPhoneAlt } from "react-icons/fa";
+import { authStore } from "../../store/authStore";
 
 const VideoCall = () => {
+  const { userId, username } = authStore((state) => state);
+
   const [me, setMe] = useState<string>("");
   const [stream, setStream] = useState<any>();
   const [receivingCall, setReceivingCall] = useState<boolean>(false);
@@ -23,10 +26,12 @@ const VideoCall = () => {
     const s = io(`${API_URL}`);
     setSocket(s);
 
+    s.emit("login", { userId, username });
+
     return () => {
       s.disconnect();
     };
-  }, []);
+  }, [userId, username]);
 
   useEffect(() => {
     navigator.mediaDevices
@@ -36,17 +41,18 @@ const VideoCall = () => {
         if (myVideo.current) {
           myVideo.current.srcObject = stream;
         }
-        console.log("stream", stream);
       });
+
     socket?.on("me", (id: string) => {
       setMe(id);
     });
+
     socket?.on("callUser2", (data: any) => {
       setReceivingCall(true);
       setCaller(data.from);
       setName(data.name);
       setCallerSignal(data.signal);
-      console.log("callUser2", data);
+      console.log("callUser2 useEffect", data);
     });
   }, [socket]);
 
@@ -57,6 +63,7 @@ const VideoCall = () => {
       trickle: false,
       stream: stream,
     });
+
     peer?.on("signal", (data) => {
       socket.emit("callUser2", {
         userToCall: id,
@@ -64,10 +71,18 @@ const VideoCall = () => {
         from: me,
         name: name,
       });
+      console.log("callUser2 function", {
+        userToCall: id,
+        signalData: data,
+        from: me,
+        name: name,
+      });
     });
+
     peer?.on("stream", (stream) => {
       userVideo.current.srcObject = stream;
     });
+
     socket.on("callAccepted2", (signal: any) => {
       setCallAccepted(true);
       peer.signal(signal);
@@ -83,9 +98,11 @@ const VideoCall = () => {
       trickle: false,
       stream: stream,
     });
+
     peer?.on("signal", (data) => {
       socket.emit("answerCall2", { signal: data, to: caller });
     });
+
     peer?.on("stream", (stream) => {
       userVideo.current.srcObject = stream;
     });
@@ -133,15 +150,6 @@ const VideoCall = () => {
             onChange={(e) => setName(e.target.value)}
             style={{ marginBottom: "20px" }}
           />
-          {/* <CopyToClipboard text={me} style={{ marginBottom: "2rem" }}>
-            <button
-              color="primary"
-              // startIcon={<AssignmentIcon fontSize="large" />}
-            >
-              Copy ID
-            </button>
-          </CopyToClipboard> */}
-
           <input
             placeholder="ID to call"
             value={idToCall}

@@ -25,11 +25,13 @@ import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { GrGallery } from "react-icons/gr";
 import { useParams } from "react-router";
 import { BsThreeDots } from "react-icons/bs";
+import { FaPhoneAlt } from "react-icons/fa";
 const Chat: FC = () => {
   const [selectedChat, setSelectedChat] = useState<any>();
   const [newMessage, setNewMessage] = useState<string>("");
   const [image, setImage] = useState<string>("");
   const [connectedUsers, setConnectedUsers] = useState<any>([]);
+  const [connectedSockets, setConnectedSockets] = useState<any>([]);
   const [publicMessages, setPublicMessages] = useState<any[]>([]);
   const [publicInput, setPublicInput] = useState<string>("");
   const [isPublicChat, setIsPublicChat] = useState<boolean>(false);
@@ -38,7 +40,8 @@ const Chat: FC = () => {
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [isImageMessage, setIsImageMessage] = useState<boolean>(false);
   const [isCallOpen, setIsCallOpen] = useState<boolean>(false);
-  const [stream, setStream] = useState<any | null>(null);
+  const [me, setMe] = useState<string>("");
+  const [stream, setStream] = useState<any>();
   const [receivingCall, setReceivingCall] = useState<boolean>(false);
   const [caller, setCaller] = useState<any>();
   const [callerSignal, setCallerSignal] = useState<any>();
@@ -47,13 +50,15 @@ const Chat: FC = () => {
   const [name, setName] = useState<string>("");
   const [isOpenImage, setIsOpenImage] = useState<boolean>(false);
   const [selectedImage, setSelectedImage] = useState<any>();
-  const [callData, setCallData] = useState<any[]>([]);
   const [idToCall, setIdToCall] = useState<string>("");
+  const [socket, setSocket] = useState<any>();
+  const [selectedSocket, setSelectedSocket] = useState<string>("");
+  const [selectedNameCaller, setSelectedNameCaller] = useState<string>("");
 
-  const myVideo = useRef<HTMLVideoElement>(null);
+  const myVideo = useRef<any>(null);
   const userVideo = useRef<any>(null);
   const connectionRef = useRef<any>(null);
-  const [socket, setSocket] = useState<any>();
+
   const { id } = useParams();
 
   const { logOut, userId, username, avatar } = authStore((state) => state);
@@ -86,10 +91,6 @@ const Chat: FC = () => {
       socket.on("connect", () => {
         console.log("connected to Socket server");
       });
-
-      socket?.on("callUser", (data: any) => {
-        console.log("callUser", data);
-      });
     }
   }, [socket]);
 
@@ -102,7 +103,11 @@ const Chat: FC = () => {
     if (socket) {
       socket?.on("connected_users", (users: any) => {
         setConnectedUsers(users);
-        console.log("connected users", users);
+        // console.log("connected users", users);
+      });
+      socket?.on("connected_sockets", (sockets: any) => {
+        setConnectedSockets(sockets);
+        console.log("connected sockets", sockets);
       });
     }
   }, [username, userId, socket, avatar]);
@@ -138,55 +143,36 @@ const Chat: FC = () => {
   useEffect(() => {
     navigator.mediaDevices
       .getUserMedia({ video: true, audio: true })
-      .then((myStream: MediaStream) => {
-        setStream(myStream);
+      .then((stream) => {
+        setStream(stream);
         if (myVideo.current) {
-          myVideo.current.srcObject = myStream;
+          myVideo.current.srcObject = stream;
         }
-        console.log("stream", myStream);
       });
-    // if (socket) {
-    //   socket?.on("callUser", (data: any) => {
-    //     console.log("callUser", data);
-    //     setReceivingCall(true);
-    //     setCaller(data.from);
-    //     setName(data.username);
-    //     setCallerSignal(data.signal);
-    //   });
-    // }
-  }, [isCallOpen]);
 
-  useEffect(() => {
-    try {
-      if (socket) {
-        socket?.on("r_callUser", (data: any) => {
-          console.log("receive_callUser", data);
-          // delete data.userToCall;
-          setReceivingCall(true);
-          // setCallData((prevData) => [
-          //   ...prevData,
-          //   { from: data.from, signal: data.signal, username: data.usernsme },
-          // ]);
-          setCaller(data.from);
-          setCallerSignal(data.signal);
-          setName(data.username);
-        });
-
-        return () => {
-          socket.off("r_callUser");
-          if (stream) {
-            stream.getTracks().forEach((track: any) => track.stop());
-          }
-        };
-      }
-    } catch (error: any) {
-      console.log("error", error);
-    }
-  }, [socket, stream]);
+    socket?.on("me", (id: string) => {
+      setMe(id);
+    });
+    socket?.on("callUser", (data: any) => {
+      setReceivingCall(true);
+      setCaller(data.from);
+      setName(data.name);
+      setCallerSignal(data.signal);
+      console.log("callUser", data);
+    });
+  }, [socket, isCallOpen]);
 
   // useEffect(() => {
-  //   console.log("caller", caller);
-  // }, [caller]);
+  //   navigator.mediaDevices
+  //     .getUserMedia({ video: true, audio: true })
+  //     .then((myStream: MediaStream) => {
+  //       setStream(myStream);
+  //       if (myVideo.current) {
+  //         myVideo.current.srcObject = myStream;
+  //       }
+  //       console.log("stream", myStream);
+  //     });
+  // }, [isCallOpen]);
 
   useEffect(() => {
     if (chats && chats.length > 0) {
@@ -198,47 +184,36 @@ const Chat: FC = () => {
   //   console.log("public messages", publicMessages);
   // }, [publicMessages]);
 
-  // useEffect(() => {
-  //   console.log("connected users", connectedUsers);
-  // }, [connectedUsers]);
+  useEffect(() => {
+    // console.log("connected users", connectedUsers);
+    connectedUsers.map((user: any) => console.log("socketId", user.socketId));
+  }, [connectedUsers]);
 
-  const callUser = (idToCall: any) => {
+  const callUser = (id: string) => {
+    console.log("callUser", id);
     const peer = new Peer({
       initiator: true,
       trickle: false,
       stream: stream,
     });
-    peer.on("signal", (data: any) => {
-      console.log("Sending signal to user:", idToCall);
-      const callData = {
-        userToCall: idToCall,
+    peer?.on("signal", (data) => {
+      socket.emit("callUser", {
+        userToCall: id,
         signalData: data,
-        from: userId,
-        username: username,
-        // roomId: id,
-      };
-      socket?.emit("callUser", callData);
-      console.log("callData sent", callData);
+        from: me,
+        name: name,
+      });
     });
-    peer.on("stream", (remoteStream: any) => {
-      // if (userVideo.current) {
-      console.log("Received remote stream", remoteStream);
-      userVideo.current.srcObject = remoteStream;
-      // }
+    peer?.on("stream", (stream) => {
+      userVideo.current.srcObject = stream;
     });
-    socket.on("callAccepted", (acceptedSignal: any) => {
-      console.log("Call accepted by callee", acceptedSignal);
+    socket.on("callAccepted", (signal: any) => {
       setCallAccepted(true);
-      peer.signal(acceptedSignal);
-    });
-
-    peer.on("error", (err) => {
-      console.log("peer error", err);
+      peer.signal(signal);
     });
 
     connectionRef.current = peer;
   };
-
   const answerCall = () => {
     setCallAccepted(true);
     const peer = new Peer({
@@ -246,15 +221,11 @@ const Chat: FC = () => {
       trickle: false,
       stream: stream,
     });
-    peer.on("signal", (data: any) => {
-      socket?.emit("answerCall", { signal: data, to: caller });
-      console.log("answerCall", data);
+    peer?.on("signal", (data) => {
+      socket.emit("answerCall", { signal: data, to: caller });
     });
-    peer.on("stream", (remoteStream: any) => {
-      // if (userVideo.current) {
-      userVideo.current.srcObject = remoteStream;
-      // }
-      console.log("Answered call received stream", remoteStream);
+    peer?.on("stream", (stream) => {
+      userVideo.current.srcObject = stream;
     });
 
     peer.signal(callerSignal);
@@ -374,6 +345,10 @@ const Chat: FC = () => {
     return imageUrl;
   };
 
+  useEffect(() => {
+    console.log("selectedSocket", selectedSocket);
+  }, [selectedSocket]);
+
   return (
     <>
       <div className="chat-container">
@@ -453,12 +428,20 @@ const Chat: FC = () => {
                     buttonText="Video"
                     icon={<IoVideocam />}
                     onClick={() => {
-                      const id = selectedChat.members.find(
-                        (member: User) => member.id !== userId
-                      ).id;
-                      console.log("call user", id);
                       setIsCallOpen(true);
-                      callUser(id);
+                      const id = selectedChat.members.find(
+                        (member: any) => member.id !== userId
+                      ).id;
+                      const socket = connectedSockets.find(
+                        (socket: any) => socket.userId === id
+                      );
+
+                      // console.log("socketId", socket.socketId);
+                      // console.log("name", socket.username);
+
+                      setSelectedSocket(socket.socketId);
+                      setSelectedNameCaller(socket.username);
+                      // callUser(socketId);
                     }}
                   ></Button>
                 </div>
@@ -675,49 +658,62 @@ const Chat: FC = () => {
             <div>
               <div className="video-call-container">
                 <div>
-                  {/* {stream && ( */}
-                  <video
-                    playsInline
-                    muted
-                    ref={myVideo}
-                    autoPlay
-                    style={{
-                      width: "320px",
-                      height: "240px",
-                      backgroundColor: "#000000",
-                      borderRadius: "10px",
-                    }}
-                  ></video>
-                  {/* )} */}
+                  {stream && (
+                    <video
+                      playsInline
+                      muted
+                      ref={myVideo}
+                      autoPlay
+                      style={{
+                        width: "320px",
+                        height: "240px",
+                        backgroundColor: "#000000",
+                        borderRadius: "10px",
+                      }}
+                    ></video>
+                  )}
                 </div>
                 <div>
-                  {/* {callAccepted && !callEnded ? ( */}
-                  <video
-                    playsInline
-                    ref={userVideo}
-                    autoPlay
-                    style={{
-                      width: "320px",
-                      height: "240px",
-                      backgroundColor: "#000000",
-                      borderRadius: "10px",
-                    }}
-                  />
-                  {/* ) : null} */}
+                  {callAccepted && !callEnded ? (
+                    <video
+                      playsInline
+                      ref={userVideo}
+                      autoPlay
+                      style={{
+                        width: "320px",
+                        height: "240px",
+                        backgroundColor: "#000000",
+                        borderRadius: "10px",
+                      }}
+                    />
+                  ) : null}
                 </div>
+
                 {callAccepted && !callEnded ? (
                   <button onClick={leaveCall}>End Call</button>
                 ) : (
-                  <button onClick={() => setIsCallOpen(false)}>Close</button>
+                  <>
+                    <button
+                      onClick={() => {
+                        callUser(selectedSocket);
+                      }}
+                    >
+                      <FaPhoneAlt />
+                    </button>
+                    <button onClick={() => setIsCallOpen(false)}>Close</button>
+                  </>
                 )}
-              </div>
-              <div>
-                {receivingCall && !callAccepted ? (
-                  <div className="caller">
-                    <h1>{name} is calling...</h1>
-                    <button onClick={answerCall}>Answer</button>
-                  </div>
-                ) : null}
+                {/* {idToCall} */}
+                <div>{me}</div>
+                <div>{userId}</div>
+                <div>
+                  {receivingCall && !callAccepted ? (
+                    <div className="caller">
+                      <h1>{selectedNameCaller} is calling...</h1>
+                      <button onClick={answerCall}>Answer</button>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
           </>

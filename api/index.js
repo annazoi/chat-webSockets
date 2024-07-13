@@ -12,8 +12,6 @@ const userRoutes = require("./routes/user");
 const chatRoutes = require("./routes/chat");
 const { sign } = require("crypto");
 
-// const ws = require("ws");
-
 // gia to avatar
 app.use(express.json({ limit: "50mb" }));
 app.use(bodyParser.json());
@@ -30,7 +28,7 @@ app.use(express.json());
 const PORT = 8080;
 
 app.get("/", (req, res) => {
-  res.send("Hello World!");
+  res.send("welcome to port 8080!");
 });
 
 app.use("/auth", authRoutes);
@@ -45,26 +43,39 @@ const io = require("socket.io")(http, {
 });
 
 const connectedUsers = new Map();
+const sockets = new Map();
 
 io.on("connection", (socket) => {
   // console.log("a user connected", socket.id);
 
-  // Join the public room
-  const publicRoom = "public_room";
-  socket.on("join_public_room", () => {
-    socket.join(publicRoom);
-    console.log(`User ${socket.id} joined public room`);
-  });
+  socket.emit("me", socket.id);
 
   socket.on("login", (data) => {
     const { userId, username, avatar } = data;
     connectedUsers.set(userId, {
+      // socketId: socket.id,
       userId,
       username,
       avatar,
     });
     console.log(`User ${username} logged in with userId: ${userId}`);
     socket.emit("connected_users", Array.from(connectedUsers.values()) || []);
+    // socket.emit("me", userId);
+
+    sockets.set(userId, {
+      socketId: socket.id,
+      userId,
+      username,
+    });
+    console.log(sockets);
+    socket.emit("connected_sockets", Array.from(sockets.values()) || []);
+  });
+
+  // Join the public room
+  const publicRoom = "public_room";
+  socket.on("join_public_room", () => {
+    socket.join(publicRoom);
+    console.log(`User ${socket.id} joined public room`);
   });
 
   socket.on("join_room", (data) => {
@@ -83,32 +94,40 @@ io.on("connection", (socket) => {
   });
 
   socket.on("callUser", (data) => {
-    console.log(`User ${data.username} is calling ${data.userToCall}`);
-    // console.log(data);
-    io.to(data.userToCall).emit("r_callUser", {
-      userToCall: data.userToCall,
+    io.to(data.userToCall).emit("callUser", {
       signal: data.signalData,
       from: data.from,
-      username: data.username,
-      roomId: data.roomId,
+      name: data.name,
     });
+    console.log("from", data.from);
+    console.log("name", data.name);
+    console.log("to", data.userToCall);
   });
 
   socket.on("answerCall", (data) => {
     io.to(data.to).emit("callAccepted", data.signal);
-    console.log(`User answered call`, data);
   });
 
   socket.on("disconnect", () => {
+    const userId = Array.from(connectedUsers.keys()).find(
+      (key) => connectedUsers.get(key).socketId === socket.id
+    );
+    if (userId) {
+      connectedUsers.delete(userId);
+      console.log(`User ${userId} disconnected`);
+      socket.broadcast.emit(
+        "connected_users",
+        Array.from(connectedUsers.values())
+      );
+      // socket.emit("connected_users", Array.from(connectedUsers.values()));
+    }
     socket.broadcast.emit("callEnded");
-    const userId = socket.handshake.query.userId;
-    connectedUsers.delete(userId);
+    // const userId = socket.handshake.query.userId;
+    // connectedUsers.delete(userId);
     // console.log(`User ${userId} disconnected`);
 
     socket.emit("connected_users", Array.from(connectedUsers.values()));
   });
-
-  socket.emit("me", socket.id);
 
   socket.on("disconnect2", () => {
     socket.broadcast.emit("callEnded");
@@ -126,7 +145,12 @@ io.on("connection", (socket) => {
   });
 
   socket.on("answerCall2", (data) => {
-    io.to(data.to).emit("callAccepted2", data.signal);
+    const userToCall = connectedUsers.get(data.to);
+    if (userToCall) {
+      io.to(userToCall.socketId).emit("callAccepted2", data.signal);
+      console.log(`User ${data.to} accepted the call from ${data.from}`);
+    }
+    // io.to(data.to).emit("callAccepted2", data.signal);
   });
 });
 

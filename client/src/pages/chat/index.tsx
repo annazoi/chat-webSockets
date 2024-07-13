@@ -6,6 +6,7 @@ import { AiOutlineLogout } from "react-icons/ai";
 import { RiRadioButtonLine } from "react-icons/ri";
 import { useMutation, useQuery } from "react-query";
 import { User } from "../../validations-schemas/interfaces/user";
+import { Socket } from "../../validations-schemas/interfaces/video";
 import { IoIosSend } from "react-icons/io";
 import { createChat, getChats, sendMessage } from "../../services/chat";
 import { authStore } from "../../store/authStore";
@@ -430,10 +431,10 @@ const Chat: FC = () => {
                     onClick={() => {
                       setIsCallOpen(true);
                       const id = selectedChat.members.find(
-                        (member: any) => member.id !== userId
+                        (member: User) => member.id !== userId
                       ).id;
                       const socket = connectedSockets.find(
-                        (socket: any) => socket.userId === id
+                        (socket: Socket) => socket.userId === id
                       );
 
                       // console.log("socketId", socket.socketId);

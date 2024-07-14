@@ -74,6 +74,11 @@
   justify-content: space-between;
 }
 
+.chat-choices {
+  display: flex;
+  gap: 10px;
+}
+
 .message-list {
   display: flex;
   flex-direction: column;
@@ -251,3 +256,10 @@
     display: none;
   }
 } */
+
+.buttons {
+  background-color: rgba(120, 1, 255, 0.3);
+}
+.buttons:hover {
+  background-color: rgba(120, 1, 255, 0.2);
+}

@@ -99,9 +99,9 @@ io.on("connection", (socket) => {
       from: data.from,
       name: data.name,
     });
-    console.log("from", data.from);
-    console.log("name", data.name);
-    console.log("to", data.userToCall);
+    // console.log("from", data.from);
+    // console.log("name", data.name);
+    // console.log("to", data.userToCall);
   });
 
   socket.on("answerCall", (data) => {

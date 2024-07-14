@@ -1,6 +1,6 @@
 import { FC, useEffect, useRef, useState } from "react";
 import "./style.css";
-import { IoSend, IoVideocam } from "react-icons/io5";
+import { IoGameController, IoSend, IoVideocam } from "react-icons/io5";
 import Button from "../../components/ui/Button";
 import { AiOutlineLogout } from "react-icons/ai";
 import { RiRadioButtonLine } from "react-icons/ri";
@@ -424,10 +424,12 @@ const Chat: FC = () => {
                   {handleChatName(selectedChat)}
                 </div>
 
-                <div>
-                  <Button
-                    buttonText="Video"
-                    icon={<IoVideocam />}
+                <div className="chat-choices">
+                  <button className="buttons">
+                    <IoGameController />
+                  </button>
+                  <button
+                    className="buttons"
                     onClick={() => {
                       setIsCallOpen(true);
                       const id = selectedChat.members.find(
@@ -444,9 +446,12 @@ const Chat: FC = () => {
                       setSelectedNameCaller(socket.username);
                       // callUser(socketId);
                     }}
-                  ></Button>
+                  >
+                    <IoVideocam />
+                  </button>
                 </div>
               </div>
+
               {!selectedChat && (
                 <div
                   style={{
@@ -573,16 +578,15 @@ const Chat: FC = () => {
                     </div>
                   )}
 
-                  <Button
-                    icon={<GrGallery />}
-                    buttonText="Image"
-                    onClick={handleGallery}
-                  ></Button>
-                  <Button
-                    icon={isSendMessageloading ? <BsThreeDots /> : <IoSend />}
-                    buttonText={isSendMessageloading ? "Sending..." : "Send"}
-                    onClick={handleNewMessage}
-                  ></Button>
+                  <div className="chat-choices">
+                    <button className="buttons" onClick={handleGallery}>
+                      <GrGallery />
+                    </button>
+
+                    <button className="buttons" onClick={handleNewMessage}>
+                      {isSendMessageloading ? <BsThreeDots /> : <IoSend />}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -704,9 +708,7 @@ const Chat: FC = () => {
                     <button onClick={() => setIsCallOpen(false)}>Close</button>
                   </>
                 )}
-                {/* {idToCall} */}
-                <div>{me}</div>
-                <div>{userId}</div>
+                {/* <div>{me}</div> */}
                 <div>
                   {receivingCall && !callAccepted ? (
                     <div className="caller">

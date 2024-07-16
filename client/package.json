@@ -27,6 +27,7 @@
     "react-router-dom": "^6.23.1",
     "simple-peer": "^9.9.3",
     "socket.io-client": "^4.7.5",
+    "styled-components": "^6.1.11",
     "webrtc-adapter": "^9.0.1",
     "ws": "^8.17.0",
     "yup": "^1.4.0",

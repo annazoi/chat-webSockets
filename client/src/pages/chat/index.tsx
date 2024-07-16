@@ -1,7 +1,6 @@
 import { FC, useEffect, useRef, useState } from "react";
 import "./style.css";
 import { IoGameController, IoSend, IoVideocam } from "react-icons/io5";
-import Button from "../../components/ui/Button";
 import { AiOutlineLogout } from "react-icons/ai";
 import { RiRadioButtonLine } from "react-icons/ri";
 import { useMutation, useQuery } from "react-query";
@@ -27,6 +26,7 @@ import { GrGallery } from "react-icons/gr";
 import { useParams } from "react-router";
 import { BsThreeDots } from "react-icons/bs";
 import { FaPhoneAlt } from "react-icons/fa";
+import Video from "../../components/Video";
 const Chat: FC = () => {
   const [selectedChat, setSelectedChat] = useState<any>();
   const [newMessage, setNewMessage] = useState<string>("");
@@ -51,7 +51,6 @@ const Chat: FC = () => {
   const [name, setName] = useState<string>("");
   const [isOpenImage, setIsOpenImage] = useState<boolean>(false);
   const [selectedImage, setSelectedImage] = useState<any>();
-  const [idToCall, setIdToCall] = useState<string>("");
   const [socket, setSocket] = useState<any>();
   const [selectedSocket, setSelectedSocket] = useState<string>("");
   const [selectedNameCaller, setSelectedNameCaller] = useState<string>("");
@@ -657,71 +656,22 @@ const Chat: FC = () => {
         </div>
       </div>
 
-      <>
-        {isCallOpen && (
-          <>
-            <div>
-              <div className="video-call-container">
-                <div>
-                  {stream && (
-                    <video
-                      playsInline
-                      muted
-                      ref={myVideo}
-                      autoPlay
-                      style={{
-                        width: "320px",
-                        height: "240px",
-                        backgroundColor: "#000000",
-                        borderRadius: "10px",
-                      }}
-                    ></video>
-                  )}
-                </div>
-                <div>
-                  {callAccepted && !callEnded ? (
-                    <video
-                      playsInline
-                      ref={userVideo}
-                      autoPlay
-                      style={{
-                        width: "320px",
-                        height: "240px",
-                        backgroundColor: "#000000",
-                        borderRadius: "10px",
-                      }}
-                    />
-                  ) : null}
-                </div>
-
-                {callAccepted && !callEnded ? (
-                  <button onClick={leaveCall}>End Call</button>
-                ) : (
-                  <>
-                    <button
-                      onClick={() => {
-                        callUser(selectedSocket);
-                      }}
-                    >
-                      <FaPhoneAlt />
-                    </button>
-                    <button onClick={() => setIsCallOpen(false)}>Close</button>
-                  </>
-                )}
-                {/* <div>{me}</div> */}
-                <div>
-                  {receivingCall && !callAccepted ? (
-                    <div className="caller">
-                      <h1>{selectedNameCaller} is calling...</h1>
-                      <button onClick={answerCall}>Answer</button>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-      </>
+      <Video
+        isCallOpen={isCallOpen}
+        stream={stream}
+        myVideo={myVideo}
+        userVideo={userVideo}
+        callAccepted={callAccepted}
+        callEnded={callEnded}
+        selectedSocket={selectedSocket}
+        receivingCall={receivingCall}
+        selectedNameCaller={selectedNameCaller}
+        me={me}
+        callUser={callUser}
+        leaveCall={leaveCall}
+        answerCall={answerCall}
+        setIsCallOpen={setIsCallOpen}
+      />
     </>
   );
 };

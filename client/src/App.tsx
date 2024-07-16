@@ -4,6 +4,8 @@ import Chat from "./pages/chat";
 import Signup from "./pages/auth/signup";
 import Signin from "./pages/auth/signin";
 import Video from "./pages/video";
+import Game from "./pages/game";
+import JoinGame from "./pages/joinGame";
 function App() {
   return (
     <>
@@ -15,6 +17,8 @@ function App() {
           <Route path="/signin" element={<Signin />} />
           <Route path="/" element={<Signin />} />
           <Route path="/video-call" element={<Video />} />
+          <Route path="/game" element={<Game />} />
+          <Route path="/join-game" element={<JoinGame />} />
         </Routes>
       </BrowserRouter>
     </>

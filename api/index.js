@@ -128,7 +128,59 @@ io.on("connection", (socket) => {
 
     socket.emit("connected_users", Array.from(connectedUsers.values()));
   });
+
+  // tic tac toe
+  socket.on("update_game", (message) => {
+    const gameRoom = getSocketGameRoom(socket);
+    if (gameRoom) {
+      socket.to(gameRoom).emit("on_game_update", message);
+    }
+  });
+
+  socket.on("game_win", (message) => {
+    const gameRoom = getSocketGameRoom(socket);
+    if (gameRoom) {
+      socket.to(gameRoom).emit("on_game_win", message);
+    }
+  });
+
+  socket.on("join_game", async (message) => {
+    console.log("New User joining room: ", message);
+
+    const connectedSockets = io.sockets.adapter.rooms.get(message.roomId);
+    const socketRooms = Array.from(socket.rooms.values()).filter(
+      (r) => r !== socket.id
+    );
+
+    if (
+      socketRooms.length > 0 ||
+      (connectedSockets && connectedSockets.size === 2)
+    ) {
+      socket.emit("room_join_error", {
+        error: "Room is full please choose another room to play!",
+      });
+    } else {
+      await socket.join(message.roomId);
+      socket.emit("room_joined");
+
+      if (io.sockets.adapter.rooms.get(message.roomId).size === 2) {
+        socket.emit("start_game", { start: true, symbol: "x" });
+        socket
+          .to(message.roomId)
+          .emit("start_game", { start: false, symbol: "o" });
+      }
+    }
+  });
 });
+
+const getSocketGameRoom = (socket) => {
+  const socketRooms = Array.from(socket.rooms.values()).filter(
+    (r) => r !== socket.id
+  );
+  const gameRoom = socketRooms && socketRooms[0];
+
+  return gameRoom;
+};
 
 mongoose.connect(process.env.DB_CONNECTION).then(() => {
   http.listen(PORT, () => {

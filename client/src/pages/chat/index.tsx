@@ -424,7 +424,7 @@ const Chat: FC = () => {
                 </div>
 
                 <div className="chat-choices">
-                  <button className="buttons">
+                  <button className="buttons" onClick={() => navigate("/game")}>
                     <IoGameController />
                   </button>
                   <button

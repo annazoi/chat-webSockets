@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { gameStore } from "../../store/gameStore";
 import gameService from "../../services/gameService";
 
-const JoinGame = ({ socket, setJoined }: any) => {
+const JoinGame = ({ socket }: any) => {
   const [roomName, setRoomName] = useState<string>("");
   const [isJoining, setJoining] = useState<boolean>(false);
 
@@ -26,7 +26,6 @@ const JoinGame = ({ socket, setJoined }: any) => {
       const joined = await gameService.joinGameRoom(socket, roomName);
       if (joined) setInRoom(true);
       console.log("joined", joined);
-      if (joined) setJoined(true);
     } catch (err) {
       alert(err);
     } finally {

@@ -8,7 +8,6 @@ import io from "socket.io-client";
 const TicTacToe = () => {
   const { isInRoom } = gameStore((state) => state);
   const [socket, setSocket] = useState<any>();
-  const [joined, setJoined] = useState<boolean>(false);
 
   useEffect(() => {
     const s = io(`${API_URL}`);
@@ -29,8 +28,8 @@ const TicTacToe = () => {
 
   return (
     <div>
-      {!joined && <JoinRoom socket={socket} setJoined={setJoined} />}
-      {joined && <Game socket={socket} />}
+      {!isInRoom && <JoinRoom socket={socket} />}
+      {isInRoom && <Game socket={socket} />}
     </div>
   );
 };

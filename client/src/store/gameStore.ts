@@ -23,17 +23,28 @@ interface GameState {
 //   setGameStarted: () => {},
 // };
 
-export const gameStore = create<GameState>()((set) => ({
-  // ...initialStateValues,
-  isInRoom: false,
-  setInRoom: () => {},
-  playerSymbol: "x",
-  setPlayerSymbol: () => {},
-  isPlayerTurn: false,
-  setPlayerTurn: () => {},
-  isGameStarted: false,
-  setGameStarted: () => {},
-}));
+export const gameStore = create<GameState>()(
+  devtools(
+    persist(
+      (set) => ({
+        isInRoom: false,
+        setInRoom: (inRoom: boolean) => set({ isInRoom: inRoom }),
+        playerSymbol: "x",
+        setPlayerSymbol: (symbol: "x" | "o") => set({ playerSymbol: symbol }),
+        isPlayerTurn: false,
+        setPlayerTurn: (turn: boolean) => set({ isPlayerTurn: turn }),
+        isGameStarted: false,
+        setGameStarted: (started: boolean) => set({ isGameStarted: started }),
+      }),
+      {
+        name: "game-store",
+        onRehydrateStorage: () => (state: any) => {
+          state.setInRoom(false);
+        },
+      }
+    )
+  )
+);
 
 export const getGameState = (): GameState => {
   return gameStore.getState();

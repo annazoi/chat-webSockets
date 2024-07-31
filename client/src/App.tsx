@@ -6,6 +6,7 @@ import Signin from "./pages/auth/signin";
 import Video from "./pages/video";
 import Game from "./pages/game";
 import JoinGame from "./pages/joinGame";
+import TicTacToe from "./pages/tictactoe";
 function App() {
   return (
     <>
@@ -17,8 +18,7 @@ function App() {
           <Route path="/signin" element={<Signin />} />
           <Route path="/" element={<Signin />} />
           <Route path="/video-call" element={<Video />} />
-          <Route path="/game" element={<Game />} />
-          <Route path="/join-game" element={<JoinGame />} />
+          <Route path="/game" element={<TicTacToe />} />
         </Routes>
       </BrowserRouter>
     </>

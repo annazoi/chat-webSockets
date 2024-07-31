@@ -67,7 +67,7 @@ io.on("connection", (socket) => {
       userId,
       username,
     });
-    console.log(sockets);
+    // console.log(sockets);
     socket.emit("connected_sockets", Array.from(sockets.values()) || []);
   });
 
@@ -108,6 +108,55 @@ io.on("connection", (socket) => {
     io.to(data.to).emit("callAccepted", data.signal);
   });
 
+  // tic tac toe
+  socket.on("update_game", (message) => {
+    const gameRoom = getSocketGameRoom(socket);
+    if (gameRoom) {
+      socket.to(gameRoom).emit("on_game_update", message);
+    }
+  });
+
+  socket.on("game_win", (message) => {
+    const gameRoom = getSocketGameRoom(socket);
+    if (gameRoom) {
+      socket.to(gameRoom).emit("on_game_win", message);
+    }
+  });
+
+  socket.on("join_game", async (message) => {
+    console.log("New User joining room: ", message);
+
+    // const connectedSockets = io.sockets.adapter.rooms.get(message.roomId);
+    // const socketRooms = Array.from(socket.rooms.values()).filter(
+    //   (r) => r !== socket.id
+    // );
+
+    const connectedSockets = io.sockets.adapter.rooms.get(socket.id);
+    const socketRooms = Array.from(socket.rooms.values()).filter(
+      (r) => r !== socket.id
+    );
+
+    console.log("connectedSockets", connectedSockets);
+    if (
+      socketRooms.length > 0 ||
+      (connectedSockets && connectedSockets.size === 2)
+    ) {
+      socket.emit("room_join_error", {
+        error: "Room is full please choose another room to play!",
+      });
+    } else {
+      await socket.join(message.roomId);
+      socket.emit("room_joined");
+
+      if (io.sockets.adapter.rooms.get(message.roomId).size === 2) {
+        socket.emit("start_game", { start: true, symbol: "x" });
+        socket
+          .to(message.roomId)
+          .emit("start_game", { start: false, symbol: "o" });
+      }
+    }
+  });
+
   socket.on("disconnect", () => {
     const userId = Array.from(connectedUsers.keys()).find(
       (key) => connectedUsers.get(key).socketId === socket.id
@@ -127,49 +176,6 @@ io.on("connection", (socket) => {
     // console.log(`User ${userId} disconnected`);
 
     socket.emit("connected_users", Array.from(connectedUsers.values()));
-  });
-
-  // tic tac toe
-  socket.on("update_game", (message) => {
-    const gameRoom = getSocketGameRoom(socket);
-    if (gameRoom) {
-      socket.to(gameRoom).emit("on_game_update", message);
-    }
-  });
-
-  socket.on("game_win", (message) => {
-    const gameRoom = getSocketGameRoom(socket);
-    if (gameRoom) {
-      socket.to(gameRoom).emit("on_game_win", message);
-    }
-  });
-
-  socket.on("join_game", async (message) => {
-    console.log("New User joining room: ", message);
-
-    const connectedSockets = io.sockets.adapter.rooms.get(message.roomId);
-    const socketRooms = Array.from(socket.rooms.values()).filter(
-      (r) => r !== socket.id
-    );
-
-    if (
-      socketRooms.length > 0 ||
-      (connectedSockets && connectedSockets.size === 2)
-    ) {
-      socket.emit("room_join_error", {
-        error: "Room is full please choose another room to play!",
-      });
-    } else {
-      await socket.join(message.roomId);
-      socket.emit("room_joined");
-
-      if (io.sockets.adapter.rooms.get(message.roomId).size === 2) {
-        socket.emit("start_game", { start: true, symbol: "x" });
-        socket
-          .to(message.roomId)
-          .emit("start_game", { start: false, symbol: "o" });
-      }
-    }
   });
 });
 

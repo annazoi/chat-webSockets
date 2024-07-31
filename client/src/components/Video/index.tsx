@@ -38,9 +38,34 @@ const Video: FC<VideoProps> = ({
     <>
       {isCallOpen && (
         <>
-          <div>
-            <div className="video-call-container">
+          <div className="video-call-container">
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "10px",
+                backgroundColor: "#ffa2e973",
+                borderRadius: "10px",
+                boxShadow: "0 0 10px rgba(0, 0, 0, 0.1)",
+                position: "fixed",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                zIndex: 9999,
+              }}
+            >
               <div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "end",
+                    marginBottom: "10px",
+                  }}
+                >
+                  <button onClick={() => setIsCallOpen(false)}>X</button>
+                </div>
                 {stream && (
                   <video
                     playsInline
@@ -71,7 +96,6 @@ const Video: FC<VideoProps> = ({
                   />
                 ) : null}
               </div>
-
               {callAccepted && !callEnded ? (
                 <button onClick={leaveCall}>End Call</button>
               ) : (
@@ -83,7 +107,6 @@ const Video: FC<VideoProps> = ({
                   >
                     <FaPhoneAlt />
                   </button>
-                  <button onClick={() => setIsCallOpen(false)}>Close</button>
                 </>
               )}
               {/* <div>{me}</div> */}
